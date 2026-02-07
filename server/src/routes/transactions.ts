@@ -47,6 +47,31 @@ router.post('/', (req, res) => {
   })
 })
 
+router.patch('/:id', (req, res) => {
+  const { id } = req.params
+  const { category } = req.body
+
+  if (!category) {
+    return res.status(400).json({ error: 'Category is required' })
+  }
+
+  const db = getDb()
+  db.run('UPDATE transactions SET category = ? WHERE id = ?', [category, id])
+  saveDb()
+
+  // Return updated transaction
+  const stmt = db.prepare('SELECT id, amount, description, category, date, type FROM transactions WHERE id = ?')
+  stmt.bind([id])
+  if (stmt.step()) {
+    const transaction = stmt.getAsObject()
+    stmt.free()
+    res.json(transaction)
+  } else {
+    stmt.free()
+    res.status(404).json({ error: 'Transaction not found' })
+  }
+})
+
 router.delete('/:id', (req, res) => {
   const { id } = req.params
   const db = getDb()

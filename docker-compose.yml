@@ -1,8 +1,19 @@
 services:
-  budget-app:
+  family-hub:
     build: .
     ports:
       - "3000:3000"
+    environment:
+      - AUTH_PIN=${AUTH_PIN}
     volumes:
-      - ./server/data:/app/server/data
+      - ./data:/app/data
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - family-hub
     restart: unless-stopped

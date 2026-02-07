@@ -16,9 +16,10 @@ COPY . .
 # Build client and server
 RUN npm run build
 
-# Create data directory
-RUN mkdir -p /app/server/data
+# Create data directory (db.ts resolves to __dirname/../../data = /app/data)
+RUN mkdir -p /app/data
 
+ENV PORT=3000
 EXPOSE 3000
 
 CMD ["npm", "start"]
