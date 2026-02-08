@@ -166,7 +166,9 @@ const eventsByDate = computed(() => {
 })
 
 const isToday = (dateStr: string) => {
-  return dateStr === new Date().toISOString().split('T')[0]
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  return dateStr === today
 }
 
 function getEventStyle(event: CalendarEvent) {
