@@ -5,6 +5,8 @@ services:
       - "3000:3000"
     environment:
       - AUTH_PIN=${AUTH_PIN}
+      - ICLOUD_EMAIL=${ICLOUD_EMAIL}
+      - ICLOUD_APP_PASSWORD=${ICLOUD_APP_PASSWORD}
     volumes:
       - ./data:/app/data
     restart: unless-stopped

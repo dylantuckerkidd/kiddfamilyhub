@@ -34,7 +34,7 @@ const router = createRouter({
       component: () => import('@/views/AnalyticsView.vue')
     },
     {
-      path: '/budget/settings',
+      path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsView.vue')
     },

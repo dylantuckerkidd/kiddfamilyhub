@@ -53,7 +53,7 @@ const weekStart = computed(() => {
 })
 
 const weekDays = computed(() => {
-  const days: { date: Date; dateStr: string; dayName: string; dayNum: number; monthName: string }[] = []
+  const days: { date: Date; dateStr: string; dayName: string; dayNameShort: string; dayNum: number; monthName: string }[] = []
   for (let i = 0; i < 7; i++) {
     const date = new Date(weekStart.value)
     date.setDate(date.getDate() + i)
@@ -61,6 +61,7 @@ const weekDays = computed(() => {
       date,
       dateStr: date.toISOString().split('T')[0],
       dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
+      dayNameShort: date.toLocaleDateString('en-US', { weekday: 'narrow' }),
       dayNum: date.getDate(),
       monthName: date.toLocaleDateString('en-US', { month: 'short' })
     })
@@ -370,17 +371,17 @@ watch([currentDate, viewMode], () => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4 sm:space-y-6">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Calendar</h1>
-        <p class="text-gray-500 dark:text-gray-400 mt-1">Family events and schedules</p>
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Calendar</h1>
+        <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">Family events and schedules</p>
       </div>
 
       <button
         @click="showPersonModal = true"
-        class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors"
+        class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors text-sm sm:text-base"
       >
         Manage People
       </button>
@@ -398,7 +399,7 @@ watch([currentDate, viewMode], () => {
 
       <template v-else>
       <!-- Calendar Header -->
-      <div class="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-700">
+      <div class="flex items-center justify-between p-3 sm:p-4 border-b border-gray-100 dark:border-gray-700">
         <button
           @click="prev"
           class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -408,32 +409,34 @@ watch([currentDate, viewMode], () => {
           </svg>
         </button>
 
-        <div class="flex items-center gap-4">
-          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+        <div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
+          <h2 class="text-base sm:text-xl font-semibold text-gray-900 dark:text-white text-center">
             {{ viewMode === 'month' ? monthName : weekLabel }}
           </h2>
-          <button
-            @click="goToToday"
-            class="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
-          >
-            Today
-          </button>
-          <!-- View Toggle -->
-          <div class="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+          <div class="flex items-center gap-2">
             <button
-              @click="viewMode = 'week'"
-              class="px-3 py-1 text-sm rounded-md transition-colors"
-              :class="viewMode === 'week' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400'"
+              @click="goToToday"
+              class="px-3 py-1 text-xs sm:text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
             >
-              Week
+              Today
             </button>
-            <button
-              @click="viewMode = 'month'"
-              class="px-3 py-1 text-sm rounded-md transition-colors"
-              :class="viewMode === 'month' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400'"
-            >
-              Month
-            </button>
+            <!-- View Toggle -->
+            <div class="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+              <button
+                @click="viewMode = 'week'"
+                class="px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-md transition-colors"
+                :class="viewMode === 'week' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400'"
+              >
+                Week
+              </button>
+              <button
+                @click="viewMode = 'month'"
+                class="px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-md transition-colors"
+                :class="viewMode === 'month' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400'"
+              >
+                Month
+              </button>
+            </div>
           </div>
         </div>
 
@@ -452,11 +455,12 @@ watch([currentDate, viewMode], () => {
         <!-- Day Headers -->
         <div class="grid grid-cols-7 border-b border-gray-100 dark:border-gray-700">
           <div
-            v-for="day in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']"
+            v-for="(day, i) in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']"
             :key="day"
-            class="py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400"
+            class="py-2 sm:py-3 text-center text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400"
           >
-            {{ day }}
+            <span class="hidden sm:inline">{{ day }}</span>
+            <span class="sm:hidden">{{ ['S','M','T','W','T','F','S'][i] }}</span>
           </div>
         </div>
 
@@ -466,15 +470,15 @@ watch([currentDate, viewMode], () => {
             v-for="(day, index) in calendarDays"
             :key="index"
             @click="openAddEvent(day.dateStr)"
-            class="min-h-32 p-2 border-b border-r border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors"
+            class="min-h-16 sm:min-h-32 p-1 sm:p-2 border-b border-r border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors"
             :class="{
               'bg-gray-50 dark:bg-gray-800/50': !day.currentMonth,
               'bg-emerald-50 dark:bg-emerald-900/30': isToday(day.dateStr)
             }"
           >
-            <div class="flex items-center justify-center mb-2">
+            <div class="flex items-center justify-center mb-1 sm:mb-2">
               <span
-                class="w-8 h-8 flex items-center justify-center text-sm rounded-full"
+                class="w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center text-xs sm:text-sm rounded-full"
                 :class="{
                   'text-gray-400 dark:text-gray-600': !day.currentMonth,
                   'text-gray-900 dark:text-white': day.currentMonth && !isToday(day.dateStr),
@@ -486,12 +490,12 @@ watch([currentDate, viewMode], () => {
             </div>
 
             <!-- Events for this day -->
-            <div class="space-y-1">
+            <div class="space-y-0.5 sm:space-y-1">
               <div
                 v-for="({ event, isStart, isEnd, isMid }, idx) in (eventsByDate.get(day.dateStr) || []).slice(0, 3)"
                 :key="`${event.id}-${idx}`"
                 @click.stop="openEditEvent(event)"
-                class="px-2 py-1 text-xs truncate cursor-pointer hover:opacity-80 transition-opacity font-medium"
+                class="px-1 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs truncate cursor-pointer hover:opacity-80 transition-opacity font-medium"
                 :class="{
                   'rounded': !event.end_date || event.end_date === event.date,
                   'rounded-l': isStart && event.end_date && event.end_date !== event.date,
@@ -501,11 +505,12 @@ watch([currentDate, viewMode], () => {
                 :style="getEventStyle(event)"
               >
                 <template v-if="isStart">
-                  <span v-if="event.time" class="opacity-75">{{ formatTime(event.time) }}<template v-if="event.end_time && (!event.end_date || event.end_date === event.date)">-{{ formatTime(event.end_time) }}</template></span>
+                  <span v-if="event.time" class="opacity-75 hidden sm:inline">{{ formatTime(event.time) }}<template v-if="event.end_time && (!event.end_date || event.end_date === event.date)">-{{ formatTime(event.end_time) }}</template></span>
                   {{ event.title }}
                 </template>
                 <template v-else-if="isEnd && event.end_time">
-                  <span class="opacity-75">ends {{ formatTime(event.end_time) }}</span>
+                  <span class="opacity-75 hidden sm:inline">ends {{ formatTime(event.end_time) }}</span>
+                  <span class="sm:hidden opacity-50">{{ event.title }}</span>
                 </template>
                 <template v-else>
                   <span class="opacity-50">{{ event.title }}</span>
@@ -516,17 +521,17 @@ watch([currentDate, viewMode], () => {
                 v-for="todo in getTodosForDay(day.dateStr).slice(0, Math.max(0, 3 - (eventsByDate.get(day.dateStr) || []).length))"
                 :key="`todo-${todo.id}`"
                 @click.stop
-                class="px-2 py-1 text-xs truncate rounded font-medium flex items-center gap-1"
+                class="px-1 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs truncate rounded font-medium flex items-center gap-1"
                 :style="getTodoStyle(todo)"
               >
-                <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-2.5 h-2.5 sm:w-3 sm:h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
                 {{ todo.title }}
               </div>
               <div
                 v-if="(eventsByDate.get(day.dateStr) || []).length + getTodosForDay(day.dateStr).length > 3"
-                class="text-xs text-gray-500 dark:text-gray-400 pl-1"
+                class="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 pl-1"
               >
                 +{{ (eventsByDate.get(day.dateStr) || []).length + getTodosForDay(day.dateStr).length - 3 }} more
               </div>
@@ -537,7 +542,69 @@ watch([currentDate, viewMode], () => {
 
       <!-- WEEK VIEW -->
       <template v-else>
-        <div class="grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-700">
+        <!-- Mobile: stacked list -->
+        <div class="flex flex-col md:hidden divide-y divide-gray-100 dark:divide-gray-700">
+          <div
+            v-for="day in weekDays"
+            :key="day.dateStr"
+          >
+            <!-- Day Header -->
+            <div
+              @click="openAddEvent(day.dateStr)"
+              class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              :class="{ 'bg-emerald-50 dark:bg-emerald-900/20': isToday(day.dateStr) }"
+            >
+              <div
+                class="w-10 h-10 flex items-center justify-center text-lg font-semibold rounded-full flex-shrink-0"
+                :class="isToday(day.dateStr) ? 'bg-emerald-500 text-white' : 'text-gray-900 dark:text-white'"
+              >
+                {{ day.dayNum }}
+              </div>
+              <div class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ day.dayName }}</div>
+              <div class="flex-1"></div>
+              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+            </div>
+
+            <!-- Events -->
+            <div v-if="getEventsForDay(day.dateStr).length > 0 || getTodosForDay(day.dateStr).length > 0" class="px-4 pb-3 space-y-2">
+              <div
+                v-for="event in getEventsForDay(day.dateStr)"
+                :key="event.id"
+                @click="openEditEvent(event)"
+                class="p-3 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                :style="getEventStyle(event)"
+              >
+                <div class="font-medium text-sm">{{ event.title }}</div>
+                <div v-if="!event.all_day && event.time" class="text-xs mt-1 opacity-75">
+                  {{ formatTime(event.time) }}
+                  <template v-if="event.end_time">- {{ formatTime(event.end_time) }}</template>
+                </div>
+                <div v-else-if="event.all_day" class="text-xs mt-1 opacity-75">All day</div>
+                <div v-if="event.person_name" class="text-xs mt-1 opacity-75">{{ event.person_name }}</div>
+              </div>
+
+              <div
+                v-for="todo in getTodosForDay(day.dateStr)"
+                :key="`todo-${todo.id}`"
+                class="p-3 rounded-lg"
+                :style="getTodoStyle(todo)"
+              >
+                <div class="font-medium text-sm flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  {{ todo.title }}
+                </div>
+                <div v-if="todo.person_name" class="text-xs mt-1 opacity-75">{{ todo.person_name }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Desktop: side-by-side grid -->
+        <div class="hidden md:grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-700">
           <div
             v-for="day in weekDays"
             :key="day.dateStr"
@@ -611,7 +678,7 @@ watch([currentDate, viewMode], () => {
     </div>
 
     <!-- Family Members Legend -->
-    <div v-if="store.familyMembers.length > 0" class="flex flex-wrap gap-3">
+    <div v-if="store.familyMembers.length > 0" class="flex flex-wrap gap-2 sm:gap-3">
       <div
         v-for="person in store.familyMembers"
         :key="person.id"
@@ -838,4 +905,3 @@ watch([currentDate, viewMode], () => {
     </div>
   </div>
 </template>
-

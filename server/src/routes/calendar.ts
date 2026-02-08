@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { getDb, saveDb } from '../db.js'
+import { syncCreateEvent, syncUpdateEvent, syncDeleteEvent, testICloudConnection, getICloudStatus } from '../services/icloud-sync.js'
 
 const router = Router()
 
@@ -115,6 +116,18 @@ router.get('/events', (req, res) => {
   res.json(events)
 })
 
+// iCloud sync status (before /events/:id to avoid param capture)
+router.get('/icloud-status', async (_, res) => {
+  const status = await getICloudStatus()
+  res.json(status)
+})
+
+// Test iCloud connection (before /events/:id to avoid param capture)
+router.post('/icloud-test', async (_, res) => {
+  const result = await testICloudConnection()
+  res.json(result)
+})
+
 // Add a calendar event
 router.post('/events', (req, res) => {
   const { title, description, date, time, end_date, end_time, all_day, person_id } = req.body
@@ -129,10 +142,10 @@ router.post('/events', (req, res) => {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [title, description || null, date, time || null, end_date || null, end_time || null, all_day ? 1 : 0, person_id || null]
   )
-  saveDb()
 
   const result = db.exec('SELECT last_insert_rowid() as id')
   const id = result[0].values[0][0]
+  saveDb()
 
   // Fetch the created event with person info
   const stmt = db.prepare(`
@@ -146,6 +159,14 @@ router.post('/events', (req, res) => {
   stmt.free()
 
   res.status(201).json(event)
+
+  // Sync to iCloud (fire-and-forget, after response sent)
+  syncCreateEvent({ title, description, date, time, end_date, end_time, all_day: all_day ? 1 : 0 }).then(icalUid => {
+    if (icalUid) {
+      db.run('UPDATE calendar_events SET ical_uid = ? WHERE id = ?', [icalUid, id])
+      saveDb()
+    }
+  })
 })
 
 // Update a calendar event
@@ -211,15 +232,53 @@ router.patch('/events/:id', (req, res) => {
   }
 
   res.json(event)
+
+  // Sync to iCloud (fire-and-forget, after response sent)
+  const eventData = { title: event.title as string, description: event.description as string, date: event.date as string, time: event.time as string, end_date: event.end_date as string, end_time: event.end_time as string, all_day: event.all_day as number }
+  if (event.ical_uid) {
+    syncUpdateEvent(event.ical_uid as string, eventData).then(ok => {
+      if (!ok) {
+        // Update failed (stale UID) — clear it and create fresh
+        db.run('UPDATE calendar_events SET ical_uid = NULL WHERE id = ?', [id])
+        saveDb()
+        syncCreateEvent(eventData).then(newUid => {
+          if (newUid) {
+            db.run('UPDATE calendar_events SET ical_uid = ? WHERE id = ?', [newUid, id])
+            saveDb()
+          }
+        })
+      }
+    })
+  } else {
+    syncCreateEvent(eventData).then(icalUid => {
+      if (icalUid) {
+        db.run('UPDATE calendar_events SET ical_uid = ? WHERE id = ?', [icalUid, id])
+        saveDb()
+      }
+    })
+  }
 })
 
 // Delete a calendar event
 router.delete('/events/:id', (req, res) => {
   const { id } = req.params
   const db = getDb()
+
+  // Fetch ical_uid before deleting
+  const stmt = db.prepare('SELECT ical_uid FROM calendar_events WHERE id = ?')
+  stmt.bind([id])
+  const row = stmt.step() ? stmt.getAsObject() : null
+  stmt.free()
+
   db.run('DELETE FROM calendar_events WHERE id = ?', [id])
   saveDb()
+
   res.status(204).send()
+
+  // Sync deletion to iCloud (fire-and-forget, after response sent)
+  if (row?.ical_uid) {
+    syncDeleteEvent(row.ical_uid as string)
+  }
 })
 
 export default router

@@ -244,6 +244,13 @@ export async function initDb(): Promise<Database> {
     )
   }
 
+  // Migration: add ical_uid column to calendar_events for iCloud sync
+  const calCols = db.exec(`PRAGMA table_info(calendar_events)`)
+  const hasIcalUid = calCols.length > 0 && calCols[0].values.some((row: any) => row[1] === 'ical_uid')
+  if (!hasIcalUid) {
+    db.run(`ALTER TABLE calendar_events ADD COLUMN ical_uid TEXT`)
+  }
+
   // Add plaid_transaction_id column if it doesn't exist (migration for existing DBs)
   const cols = db.exec(`PRAGMA table_info(transactions)`)
   const hasPlaidCol = cols.length > 0 && cols[0].values.some((row: any) => row[1] === 'plaid_transaction_id')

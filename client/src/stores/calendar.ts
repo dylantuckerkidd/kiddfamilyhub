@@ -93,8 +93,11 @@ export const useCalendarStore = defineStore('calendar', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(event)
     })
+    if (!res.ok) return null
     const newEvent = await res.json()
-    events.value.push(newEvent)
+    if (newEvent) {
+      events.value.push(newEvent)
+    }
     return newEvent
   }
 

@@ -126,7 +126,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4 sm:space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
@@ -215,7 +215,7 @@ onMounted(() => {
             <div
               v-for="item in group.items"
               :key="item.id"
-              class="flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+              class="flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-3 sm:py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
             >
               <button
                 @click="store.toggleItem(item.id)"
@@ -255,7 +255,7 @@ onMounted(() => {
           <div
             v-for="item in store.checkedItems"
             :key="item.id"
-            class="flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors opacity-60"
+            class="flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-3 sm:py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors opacity-60"
           >
             <button
               @click="store.toggleItem(item.id)"

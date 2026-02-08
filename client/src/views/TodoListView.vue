@@ -333,7 +333,7 @@ onMounted(() => {
           v-model="quickTitle"
           type="text"
           placeholder="Add a new task..."
-          class="flex-1 min-w-[200px] px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+          class="flex-1 min-w-0 px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
           @keydown.enter.prevent="quickAdd"
         />
         <select
@@ -604,7 +604,7 @@ onMounted(() => {
       >
         <div
           v-if="store.selectionMode && store.selectedIds.size > 0"
-          class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3 z-50 flex-wrap justify-center"
+          class="fixed bottom-6 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3 z-50 flex-wrap justify-center"
         >
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
             {{ store.selectedIds.size }} selected
