@@ -1,5 +1,4 @@
 import { DAVClient, DAVCalendar } from 'tsdav'
-import icalGenerator from 'ical-generator'
 import crypto from 'crypto'
 
 interface CalendarEvent {
@@ -73,42 +72,80 @@ async function getCalendar(): Promise<{ client: DAVClient; calendar: DAVCalendar
   return { client: dav, calendar: cachedCalendar }
 }
 
+// Format date string "2026-02-10" to iCal date "20260210"
+function fmtDate(dateStr: string): string {
+  return dateStr.replace(/-/g, '')
+}
+
+// Format time string "18:00" to iCal time "T180000"
+function fmtTime(timeStr: string): string {
+  return 'T' + timeStr.replace(':', '') + '00'
+}
+
+// Add one day to a date string "2026-02-10" -> "2026-02-11"
+function nextDay(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00Z') // noon UTC to avoid DST issues
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().split('T')[0]
+}
+
+// Add one hour to a time string "18:00" -> "19:00"
+function addHour(timeStr: string): { date: string | null; time: string } {
+  const [h, m] = timeStr.split(':').map(Number)
+  const newH = h + 1
+  if (newH >= 24) return { date: null, time: `${String(newH - 24).padStart(2, '0')}:${String(m).padStart(2, '0')}` }
+  return { date: null, time: `${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}` }
+}
+
+function escapeICS(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
+}
+
 function buildICS(uid: string, event: CalendarEvent): string {
-  const cal = icalGenerator({ name: 'Family Hub' })
+  const isAllDay = !!(event.all_day || !event.time)
+  const now = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
 
-  let start: Date
-  let end: Date | undefined
+  let dtstart: string
+  let dtend: string
 
-  if (event.all_day || !event.time) {
-    start = new Date(event.date + 'T00:00:00')
-    // iCal all-day end dates are exclusive — DTEND is the day AFTER the last day
-    // iCloud requires DTEND for all-day events
+  if (isAllDay) {
+    dtstart = `DTSTART;VALUE=DATE:${fmtDate(event.date)}`
+    // iCal all-day DTEND is exclusive (day after last day). iCloud requires it.
     const lastDay = event.end_date || event.date
-    const endDate = new Date(lastDay + 'T00:00:00')
-    endDate.setDate(endDate.getDate() + 1)
-    end = endDate
+    dtend = `DTEND;VALUE=DATE:${fmtDate(nextDay(lastDay))}`
   } else {
-    start = new Date(event.date + 'T' + event.time + ':00')
+    // Timed events: output as floating local time (no Z suffix)
+    // "18:00" stays "180000" — no timezone conversion
+    dtstart = `DTSTART:${fmtDate(event.date)}${fmtTime(event.time!)}`
     if (event.end_date && event.end_time) {
-      end = new Date(event.end_date + 'T' + event.end_time + ':00')
+      dtend = `DTEND:${fmtDate(event.end_date)}${fmtTime(event.end_time)}`
     } else if (event.end_time) {
-      end = new Date(event.date + 'T' + event.end_time + ':00')
+      dtend = `DTEND:${fmtDate(event.date)}${fmtTime(event.end_time)}`
     } else {
-      // Default to 1 hour if no end time
-      end = new Date(start.getTime() + 60 * 60 * 1000)
+      // Default to 1 hour duration
+      const { time: endTime } = addHour(event.time!)
+      dtend = `DTEND:${fmtDate(event.date)}${fmtTime(endTime)}`
     }
   }
 
-  const icalEvent = cal.createEvent({
-    id: uid,
-    start,
-    end,
-    allDay: !!(event.all_day || !event.time),
-    summary: event.title,
-    description: event.description || undefined,
-  })
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Family Hub//EN',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${now}`,
+    dtstart,
+    dtend,
+    `SUMMARY:${escapeICS(event.title)}`,
+  ]
 
-  return cal.toString()
+  if (event.description) {
+    lines.push(`DESCRIPTION:${escapeICS(event.description)}`)
+  }
+
+  lines.push('END:VEVENT', 'END:VCALENDAR')
+  return lines.join('\r\n')
 }
 
 export async function syncCreateEvent(event: CalendarEvent): Promise<string | null> {
