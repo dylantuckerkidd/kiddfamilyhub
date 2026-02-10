@@ -251,6 +251,66 @@ export async function initDb(): Promise<Database> {
     db.run(`ALTER TABLE calendar_events ADD COLUMN ical_uid TEXT`)
   }
 
+  // Migration: add sync_to_icloud column to calendar_events
+  const hasSyncToIcloud = calCols.length > 0 && calCols[0].values.some((row: any) => row[1] === 'sync_to_icloud')
+  if (!hasSyncToIcloud) {
+    db.run(`ALTER TABLE calendar_events ADD COLUMN sync_to_icloud INTEGER DEFAULT 1`)
+  }
+
+  // Migration: add recurring_group_id column to calendar_events
+  const hasRecurringGroupId = calCols.length > 0 && calCols[0].values.some((row: any) => row[1] === 'recurring_group_id')
+  if (!hasRecurringGroupId) {
+    db.run(`ALTER TABLE calendar_events ADD COLUMN recurring_group_id TEXT`)
+  }
+
+  // iCloud accounts table for multi-account support
+  db.run(`
+    CREATE TABLE IF NOT EXISTS icloud_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      label TEXT NOT NULL,
+      email TEXT NOT NULL,
+      app_password TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // Junction table: which events sync to which iCloud accounts
+  db.run(`
+    CREATE TABLE IF NOT EXISTS event_icloud_sync (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      account_id INTEGER NOT NULL,
+      ical_uid TEXT,
+      UNIQUE(event_id, account_id),
+      FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE,
+      FOREIGN KEY (account_id) REFERENCES icloud_accounts(id) ON DELETE CASCADE
+    )
+  `)
+
+  // Seed migration: if env vars exist and icloud_accounts is empty, create a default account
+  // and migrate existing ical_uid rows into the junction table
+  const icloudEmail = process.env.ICLOUD_EMAIL
+  const icloudPassword = process.env.ICLOUD_APP_PASSWORD
+  if (icloudEmail && icloudPassword) {
+    const countResult = db.exec('SELECT COUNT(*) FROM icloud_accounts')
+    const accountCount = countResult.length > 0 ? (countResult[0].values[0][0] as number) : 0
+    if (accountCount === 0) {
+      db.run('INSERT INTO icloud_accounts (label, email, app_password) VALUES (?, ?, ?)', ['Default', icloudEmail, icloudPassword])
+      const idResult = db.exec('SELECT last_insert_rowid() as id')
+      const accountId = idResult[0].values[0][0] as number
+
+      // Migrate existing events with ical_uid into junction table
+      const uidRows = db.exec('SELECT id, ical_uid FROM calendar_events WHERE ical_uid IS NOT NULL')
+      if (uidRows.length > 0) {
+        for (const row of uidRows[0].values) {
+          const eventId = row[0]
+          const icalUid = row[1]
+          db.run('INSERT OR IGNORE INTO event_icloud_sync (event_id, account_id, ical_uid) VALUES (?, ?, ?)', [eventId, accountId, icalUid])
+        }
+      }
+    }
+  }
+
   // Add plaid_transaction_id column if it doesn't exist (migration for existing DBs)
   const cols = db.exec(`PRAGMA table_info(transactions)`)
   const hasPlaidCol = cols.length > 0 && cols[0].values.some((row: any) => row[1] === 'plaid_transaction_id')

@@ -8,6 +8,12 @@ export interface FamilyMember {
   color: string
 }
 
+export interface ICloudAccount {
+  id: number
+  label: string
+  email: string
+}
+
 export interface CalendarEvent {
   id: number
   title: string
@@ -17,20 +23,23 @@ export interface CalendarEvent {
   end_date: string | null
   end_time: string | null
   all_day: number
+  sync_account_ids: number[]
   person_id: number | null
   person_name: string | null
   person_color: string | null
+  recurring_group_id: string | null
 }
 
 export const useCalendarStore = defineStore('calendar', () => {
   const events = ref<CalendarEvent[]>([])
   const familyMembers = ref<FamilyMember[]>([])
+  const icloudAccounts = ref<ICloudAccount[]>([])
   const loading = ref(false)
   const initialized = ref(false)
 
   async function fetchFamilyMembers() {
     const res = await apiFetch('/api/calendar/people')
-    familyMembers.value = await res.json()
+    if (res.ok) familyMembers.value = await res.json()
   }
 
   async function addFamilyMember(name: string, color: string) {
@@ -63,6 +72,53 @@ export const useCalendarStore = defineStore('calendar', () => {
     familyMembers.value = familyMembers.value.filter(m => m.id !== id)
   }
 
+  // iCloud Accounts
+  async function fetchICloudAccounts() {
+    const res = await apiFetch('/api/calendar/icloud-accounts')
+    if (res.ok) icloudAccounts.value = await res.json()
+  }
+
+  async function addICloudAccount(data: { label: string; email: string; app_password: string }) {
+    const res = await apiFetch('/api/calendar/icloud-accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    if (!res.ok) return null
+    const account = await res.json()
+    icloudAccounts.value.push(account)
+    return account
+  }
+
+  async function updateICloudAccount(id: number, data: { label?: string; email?: string; app_password?: string }) {
+    const res = await apiFetch(`/api/calendar/icloud-accounts/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    if (!res.ok) return null
+    const updated = await res.json()
+    const index = icloudAccounts.value.findIndex(a => Number(a.id) === Number(id))
+    if (index >= 0) {
+      icloudAccounts.value[index] = updated
+    }
+    return updated
+  }
+
+  async function deleteICloudAccount(id: number) {
+    await apiFetch(`/api/calendar/icloud-accounts/${id}`, { method: 'DELETE' })
+    icloudAccounts.value = icloudAccounts.value.filter(a => a.id !== id)
+  }
+
+  async function testICloudAccount(id: number): Promise<{ connected: boolean; calendarName?: string; error?: string }> {
+    try {
+      const res = await apiFetch(`/api/calendar/icloud-accounts/${id}/test`, { method: 'POST' })
+      return await res.json()
+    } catch {
+      return { connected: false, error: 'Failed to reach server' }
+    }
+  }
+
   async function fetchEvents(month?: number, year?: number) {
     loading.value = true
     try {
@@ -71,8 +127,10 @@ export const useCalendarStore = defineStore('calendar', () => {
         url += `?month=${month}&year=${year}`
       }
       const res = await apiFetch(url)
-      events.value = await res.json()
-      initialized.value = true
+      if (res.ok) {
+        events.value = await res.json()
+        initialized.value = true
+      }
     } finally {
       loading.value = false
     }
@@ -86,6 +144,7 @@ export const useCalendarStore = defineStore('calendar', () => {
     end_date?: string
     end_time?: string
     all_day?: boolean
+    sync_account_ids?: number[]
     person_id?: number | null
   }) {
     const res = await apiFetch('/api/calendar/events', {
@@ -107,6 +166,7 @@ export const useCalendarStore = defineStore('calendar', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     })
+    if (!res.ok) return null
     const updated = await res.json()
     const index = events.value.findIndex(e => e.id === id)
     if (index >= 0) {
@@ -120,18 +180,68 @@ export const useCalendarStore = defineStore('calendar', () => {
     events.value = events.value.filter(e => e.id !== id)
   }
 
+  async function addRecurringEvent(data: {
+    title: string
+    description?: string
+    time?: string
+    end_time?: string
+    all_day?: boolean
+    sync_account_ids?: number[]
+    person_id?: number | null
+    days: number[]
+    start_date: string
+    months: number
+  }) {
+    const res = await apiFetch('/api/calendar/events/recurring', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    if (!res.ok) return null
+    const newEvents: CalendarEvent[] = await res.json()
+    events.value.push(...newEvents)
+    return newEvents
+  }
+
+  async function deleteEventSeries(groupId: string) {
+    await apiFetch(`/api/calendar/events/series/${groupId}`, { method: 'DELETE' })
+    events.value = events.value.filter(e => e.recurring_group_id !== groupId)
+  }
+
+  async function updateEventSeries(groupId: string, data: Partial<CalendarEvent>) {
+    const res = await apiFetch(`/api/calendar/events/series/${groupId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    if (!res.ok) return null
+    const updatedEvents: CalendarEvent[] = await res.json()
+    events.value = events.value.filter(e => e.recurring_group_id !== groupId)
+    events.value.push(...updatedEvents)
+    return updatedEvents
+  }
+
   return {
     events,
     familyMembers,
+    icloudAccounts,
     loading,
     initialized,
     fetchFamilyMembers,
     addFamilyMember,
     updateFamilyMember,
     deleteFamilyMember,
+    fetchICloudAccounts,
+    addICloudAccount,
+    updateICloudAccount,
+    deleteICloudAccount,
+    testICloudAccount,
     fetchEvents,
     addEvent,
     updateEvent,
-    deleteEvent
+    deleteEvent,
+    addRecurringEvent,
+    deleteEventSeries,
+    updateEventSeries
   }
 })

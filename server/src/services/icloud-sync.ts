@@ -9,67 +9,62 @@ interface CalendarEvent {
   end_date?: string | null
   end_time?: string | null
   all_day?: number | boolean
+  color?: string | null
 }
 
-let client: DAVClient | null = null
-let cachedCalendar: DAVCalendar | null = null
+export interface AccountCredentials {
+  id: number
+  email: string
+  app_password: string
+}
+
+// Per-account client cache keyed by account ID
+const accountCache = new Map<number, { client: DAVClient; calendar: DAVCalendar }>()
 
 function getDisplayName(cal: DAVCalendar): string {
   if (typeof cal.displayName === 'string') return cal.displayName
   return 'Home'
 }
 
-function getCredentials() {
-  const email = process.env.ICLOUD_EMAIL
-  const password = process.env.ICLOUD_APP_PASSWORD
-  if (!email || !password) return null
-  return { email, password }
-}
+async function getClientForAccount(creds: AccountCredentials): Promise<{ client: DAVClient; calendar: DAVCalendar } | null> {
+  const cached = accountCache.get(creds.id)
+  if (cached) return cached
 
-async function getClient(): Promise<DAVClient | null> {
-  const creds = getCredentials()
-  if (!creds) return null
+  try {
+    const dav = new DAVClient({
+      serverUrl: 'https://caldav.icloud.com',
+      credentials: {
+        username: creds.email,
+        password: creds.app_password,
+      },
+      authMethod: 'Basic',
+      defaultAccountType: 'caldav',
+    })
 
-  if (client) return client
+    await dav.login()
 
-  const dav = new DAVClient({
-    serverUrl: 'https://caldav.icloud.com',
-    credentials: {
-      username: creds.email,
-      password: creds.password,
-    },
-    authMethod: 'Basic',
-    defaultAccountType: 'caldav',
-  })
+    const calendars = await dav.fetchCalendars()
+    const eventCalendars = calendars.filter(c => c.components?.includes('VEVENT'))
 
-  await dav.login()
-  client = dav
-  return client
-}
+    if (eventCalendars.length === 0) {
+      console.error(`[iCloud Sync] No event calendars found for account ${creds.id} (${creds.email})`)
+      return null
+    }
 
-async function getCalendar(): Promise<{ client: DAVClient; calendar: DAVCalendar } | null> {
-  const dav = await getClient()
-  if (!dav) return null
+    const calendar = eventCalendars.find(c => getDisplayName(c) === 'Home') || eventCalendars[0]
+    console.log(`[iCloud Sync] Account ${creds.id}: using calendar "${getDisplayName(calendar)}"`)
 
-  if (cachedCalendar) return { client: dav, calendar: cachedCalendar }
-
-  const calendars = await dav.fetchCalendars()
-
-  // Filter to calendars that support VEVENT (excludes Reminders/VTODO calendars)
-  const eventCalendars = calendars.filter(c =>
-    c.components?.includes('VEVENT')
-  )
-
-  if (eventCalendars.length === 0) {
-    console.error('[iCloud Sync] No event calendars found on iCloud account')
-    console.error('[iCloud Sync] Available calendars:', calendars.map(c => `${getDisplayName(c)} (${c.components?.join(',')})`))
+    const result = { client: dav, calendar }
+    accountCache.set(creds.id, result)
+    return result
+  } catch (err) {
+    console.error(`[iCloud Sync] Failed to connect account ${creds.id}:`, err)
     return null
   }
+}
 
-  // Prefer "Home" calendar, fall back to first event calendar
-  cachedCalendar = eventCalendars.find(c => getDisplayName(c) === 'Home') || eventCalendars[0]
-  console.log(`[iCloud Sync] Using calendar: ${getDisplayName(cachedCalendar)}`)
-  return { client: dav, calendar: cachedCalendar }
+export function invalidateAccountCache(accountId: number) {
+  accountCache.delete(accountId)
 }
 
 // Format date string "2026-02-10" to iCal date "20260210"
@@ -110,19 +105,15 @@ function buildICS(uid: string, event: CalendarEvent): string {
 
   if (isAllDay) {
     dtstart = `DTSTART;VALUE=DATE:${fmtDate(event.date)}`
-    // iCal all-day DTEND is exclusive (day after last day). iCloud requires it.
     const lastDay = event.end_date || event.date
     dtend = `DTEND;VALUE=DATE:${fmtDate(nextDay(lastDay))}`
   } else {
-    // Timed events: output as floating local time (no Z suffix)
-    // "18:00" stays "180000" — no timezone conversion
     dtstart = `DTSTART:${fmtDate(event.date)}${fmtTime(event.time!)}`
     if (event.end_date && event.end_time) {
       dtend = `DTEND:${fmtDate(event.end_date)}${fmtTime(event.end_time)}`
     } else if (event.end_time) {
       dtend = `DTEND:${fmtDate(event.date)}${fmtTime(event.end_time)}`
     } else {
-      // Default to 1 hour duration
       const { time: endTime } = addHour(event.time!)
       dtend = `DTEND:${fmtDate(event.date)}${fmtTime(endTime)}`
     }
@@ -144,20 +135,22 @@ function buildICS(uid: string, event: CalendarEvent): string {
     lines.push(`DESCRIPTION:${escapeICS(event.description)}`)
   }
 
+  if (event.color) {
+    lines.push(`COLOR:${event.color}`)
+    lines.push(`X-APPLE-CALENDAR-COLOR:${event.color}`)
+  }
+
   lines.push('END:VEVENT', 'END:VCALENDAR')
   return lines.join('\r\n')
 }
 
-export async function syncCreateEvent(event: CalendarEvent): Promise<string | null> {
-  if (!getCredentials()) return null
-
+export async function syncCreateEvent(creds: AccountCredentials, event: CalendarEvent): Promise<string | null> {
   try {
-    const result = await getCalendar()
+    const result = await getClientForAccount(creds)
     if (!result) return null
 
     const uid = crypto.randomUUID()
     const icsData = buildICS(uid, event)
-    const url = `${result.calendar.url}${uid}.ics`
 
     await result.client.createCalendarObject({
       calendar: result.calendar,
@@ -165,19 +158,17 @@ export async function syncCreateEvent(event: CalendarEvent): Promise<string | nu
       iCalString: icsData,
     })
 
-    console.log(`[iCloud Sync] Created event: ${event.title} (${uid})`)
+    console.log(`[iCloud Sync] Account ${creds.id}: created event "${event.title}" (${uid})`)
     return uid
   } catch (err) {
-    console.error('[iCloud Sync] Failed to create event:', err)
+    console.error(`[iCloud Sync] Account ${creds.id}: failed to create event:`, err)
     return null
   }
 }
 
-export async function syncUpdateEvent(icalUid: string, event: CalendarEvent): Promise<boolean> {
-  if (!getCredentials()) return true
-
+export async function syncUpdateEvent(creds: AccountCredentials, icalUid: string, event: CalendarEvent): Promise<boolean> {
   try {
-    const result = await getCalendar()
+    const result = await getClientForAccount(creds)
     if (!result) return false
 
     const icsData = buildICS(icalUid, event)
@@ -190,19 +181,17 @@ export async function syncUpdateEvent(icalUid: string, event: CalendarEvent): Pr
       },
     })
 
-    console.log(`[iCloud Sync] Updated event: ${event.title} (${icalUid})`)
+    console.log(`[iCloud Sync] Account ${creds.id}: updated event "${event.title}" (${icalUid})`)
     return true
   } catch (err) {
-    console.error('[iCloud Sync] Failed to update event:', err)
+    console.error(`[iCloud Sync] Account ${creds.id}: failed to update event:`, err)
     return false
   }
 }
 
-export async function syncDeleteEvent(icalUid: string): Promise<void> {
-  if (!getCredentials()) return
-
+export async function syncDeleteEvent(creds: AccountCredentials, icalUid: string): Promise<void> {
   try {
-    const result = await getCalendar()
+    const result = await getClientForAccount(creds)
     if (!result) return
 
     const url = `${result.calendar.url}${icalUid}.ics`
@@ -211,46 +200,25 @@ export async function syncDeleteEvent(icalUid: string): Promise<void> {
       calendarObject: { url },
     })
 
-    console.log(`[iCloud Sync] Deleted event: ${icalUid}`)
+    console.log(`[iCloud Sync] Account ${creds.id}: deleted event ${icalUid}`)
   } catch (err) {
-    console.error('[iCloud Sync] Failed to delete event:', err)
+    console.error(`[iCloud Sync] Account ${creds.id}: failed to delete event:`, err)
   }
 }
 
-export async function testICloudConnection(): Promise<{ connected: boolean; calendarName?: string; error?: string }> {
-  const creds = getCredentials()
-  if (!creds) {
-    return { connected: false, error: 'Not configured — set ICLOUD_EMAIL and ICLOUD_APP_PASSWORD' }
-  }
-
+export async function testICloudConnection(creds: AccountCredentials): Promise<{ connected: boolean; calendarName?: string; error?: string }> {
   try {
-    // Force fresh connection
-    client = null
-    cachedCalendar = null
+    // Force fresh connection for this account
+    invalidateAccountCache(creds.id)
 
-    const result = await getCalendar()
+    const result = await getClientForAccount(creds)
     if (!result) {
       return { connected: false, error: 'No calendars found on iCloud account' }
     }
 
     return { connected: true, calendarName: getDisplayName(result.calendar) || 'Home' }
   } catch (err: any) {
-    client = null
-    cachedCalendar = null
+    invalidateAccountCache(creds.id)
     return { connected: false, error: err.message || 'Unknown error' }
   }
-}
-
-export async function getICloudStatus(): Promise<{ configured: boolean; connected: boolean; calendarName?: string }> {
-  const creds = getCredentials()
-  if (!creds) {
-    return { configured: false, connected: false }
-  }
-
-  // If we have a cached calendar, we're connected
-  if (cachedCalendar) {
-    return { configured: true, connected: true, calendarName: getDisplayName(cachedCalendar) || 'Home' }
-  }
-
-  return { configured: true, connected: false }
 }
