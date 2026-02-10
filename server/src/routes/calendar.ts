@@ -340,6 +340,91 @@ router.post('/events/recurring', (req, res) => {
   }
 })
 
+// Create birthday events (yearly on same date for N years)
+router.post('/events/birthday', (req, res) => {
+  const { title, date, person_id, sync_account_ids, years = 5 } = req.body
+
+  if (!title || !date) {
+    return res.status(400).json({ error: 'Title and date are required' })
+  }
+
+  const db = getDb()
+  const recurringGroupId = crypto.randomUUID()
+
+  const baseDate = new Date(date + 'T00:00:00')
+  const baseMonth = baseDate.getMonth()
+  const baseDay = baseDate.getDate()
+
+  const createdIds: number[] = []
+
+  for (let i = 0; i < years; i++) {
+    const year = baseDate.getFullYear() + i
+    const dateStr = `${year}-${String(baseMonth + 1).padStart(2, '0')}-${String(baseDay).padStart(2, '0')}`
+    db.run(
+      `INSERT INTO calendar_events (title, description, date, all_day, person_id, recurring_group_id, event_type)
+       VALUES (?, NULL, ?, 1, ?, ?, 'birthday')`,
+      [title, dateStr, person_id || null, recurringGroupId]
+    )
+    const result = db.exec('SELECT last_insert_rowid() as id')
+    createdIds.push(result[0].values[0][0] as number)
+  }
+
+  saveDb()
+
+  if (createdIds.length === 0) {
+    return res.status(201).json([])
+  }
+
+  const placeholders = createdIds.map(() => '?').join(',')
+  const stmt = db.prepare(`
+    SELECT e.*, m.name as person_name, m.color as person_color
+    FROM calendar_events e
+    LEFT JOIN family_members m ON e.person_id = m.id
+    WHERE e.id IN (${placeholders})
+    ORDER BY e.date
+  `)
+  stmt.bind(createdIds)
+  const events: any[] = []
+  while (stmt.step()) {
+    events.push(stmt.getAsObject())
+  }
+  stmt.free()
+
+  // Insert junction rows for iCloud sync
+  const accountIds: number[] = Array.isArray(sync_account_ids) ? sync_account_ids : []
+  if (accountIds.length > 0) {
+    for (const event of events) {
+      for (const accountId of accountIds) {
+        db.run('INSERT OR IGNORE INTO event_icloud_sync (event_id, account_id) VALUES (?, ?)', [event.id, accountId])
+      }
+    }
+    saveDb()
+  }
+
+  // Attach sync_account_ids to response
+  for (const event of events) {
+    event.sync_account_ids = accountIds
+  }
+
+  res.status(201).json(events)
+
+  // Fire-and-forget iCloud sync
+  if (accountIds.length > 0) {
+    for (const event of events) {
+      for (const accountId of accountIds) {
+        const creds = getAccountCredentials(accountId)
+        if (!creds) continue
+        syncCreateEvent(creds, { title, description: null, date: event.date as string, time: null, end_time: null, all_day: 1, color: event.person_color as string || null }).then(icalUid => {
+          if (icalUid) {
+            db.run('UPDATE event_icloud_sync SET ical_uid = ? WHERE event_id = ? AND account_id = ?', [icalUid, event.id, accountId])
+            saveDb()
+          }
+        })
+      }
+    }
+  }
+})
+
 // Delete all events in a recurring series
 router.delete('/events/series/:groupId', (req, res) => {
   const { groupId } = req.params
@@ -383,7 +468,7 @@ router.delete('/events/series/:groupId', (req, res) => {
 // Update all events in a recurring series
 router.patch('/events/series/:groupId', (req, res) => {
   const { groupId } = req.params
-  const { title, description, time, end_time, all_day, person_id, sync_account_ids } = req.body
+  const { title, description, time, end_time, all_day, person_id, sync_account_ids, event_type } = req.body
 
   const db = getDb()
   const updates: string[] = []
@@ -395,6 +480,7 @@ router.patch('/events/series/:groupId', (req, res) => {
   if (end_time !== undefined) { updates.push('end_time = ?'); params.push(end_time) }
   if (all_day !== undefined) { updates.push('all_day = ?'); params.push(all_day ? 1 : 0) }
   if (person_id !== undefined) { updates.push('person_id = ?'); params.push(person_id) }
+  if (event_type !== undefined) { updates.push('event_type = ?'); params.push(event_type) }
 
   if (updates.length > 0) {
     params.push(groupId)
@@ -509,7 +595,7 @@ router.post('/events', (req, res) => {
 // Update a calendar event
 router.patch('/events/:id', (req, res) => {
   const { id } = req.params
-  const { title, description, date, time, end_date, end_time, all_day, person_id, sync_account_ids } = req.body
+  const { title, description, date, time, end_date, end_time, all_day, person_id, sync_account_ids, event_type } = req.body
 
   const db = getDb()
   const updates: string[] = []
@@ -523,6 +609,7 @@ router.patch('/events/:id', (req, res) => {
   if (end_time !== undefined) { updates.push('end_time = ?'); params.push(end_time) }
   if (all_day !== undefined) { updates.push('all_day = ?'); params.push(all_day ? 1 : 0) }
   if (person_id !== undefined) { updates.push('person_id = ?'); params.push(person_id) }
+  if (event_type !== undefined) { updates.push('event_type = ?'); params.push(event_type) }
 
   if (updates.length > 0) {
     params.push(id)

@@ -263,6 +263,12 @@ export async function initDb(): Promise<Database> {
     db.run(`ALTER TABLE calendar_events ADD COLUMN recurring_group_id TEXT`)
   }
 
+  // Migration: add event_type column to calendar_events (e.g. 'birthday')
+  const hasEventType = calCols.length > 0 && calCols[0].values.some((row: any) => row[1] === 'event_type')
+  if (!hasEventType) {
+    db.run(`ALTER TABLE calendar_events ADD COLUMN event_type TEXT`)
+  }
+
   // iCloud accounts table for multi-account support
   db.run(`
     CREATE TABLE IF NOT EXISTS icloud_accounts (
@@ -318,8 +324,97 @@ export async function initDb(): Promise<Database> {
     db.run(`ALTER TABLE transactions ADD COLUMN plaid_transaction_id TEXT`)
   }
 
+  // Seed major US holidays
+  seedHolidays()
+
   saveDb()
   return db
+}
+
+// --- Holiday seeding helpers ---
+
+/** Returns the nth occurrence of a weekday in a given month (1-indexed). weekday: 0=Sun..6=Sat */
+function nthWeekday(year: number, month: number, weekday: number, n: number): number {
+  const first = new Date(year, month, 1).getDay()
+  let day = 1 + ((weekday - first + 7) % 7) + (n - 1) * 7
+  return day
+}
+
+/** Returns the last occurrence of a weekday in a given month. weekday: 0=Sun..6=Sat */
+function lastWeekday(year: number, month: number, weekday: number): number {
+  const lastDay = new Date(year, month + 1, 0).getDate()
+  const lastDow = new Date(year, month, lastDay).getDay()
+  const diff = (lastDow - weekday + 7) % 7
+  return lastDay - diff
+}
+
+/** Anonymous Gregorian computus — returns [month (0-indexed), day] for Easter Sunday */
+function easterSunday(year: number): [number, number] {
+  const a = year % 19
+  const b = Math.floor(year / 100)
+  const c = year % 100
+  const d = Math.floor(b / 4)
+  const e = b % 4
+  const f = Math.floor((b + 8) / 25)
+  const g = Math.floor((b - f + 1) / 3)
+  const h = (19 * a + b - d - g + 15) % 30
+  const i = Math.floor(c / 4)
+  const k = c % 4
+  const l = (32 + 2 * e + 2 * i - h - k) % 7
+  const m = Math.floor((a + 11 * h + 22 * l) / 451)
+  const month = Math.floor((h + l - 7 * m + 114) / 31) // 3=March, 4=April
+  const day = ((h + l - 7 * m + 114) % 31) + 1
+  return [month - 1, day] // convert to 0-indexed month
+}
+
+function seedHolidays() {
+  const countResult = db.exec(`SELECT COUNT(*) FROM calendar_events WHERE event_type = 'holiday'`)
+  const count = countResult.length > 0 ? (countResult[0].values[0][0] as number) : 0
+  if (count > 0) return // already seeded
+
+  const currentYear = new Date().getFullYear()
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  for (let year = currentYear; year < currentYear + 5; year++) {
+    const holidays: [string, string][] = [] // [date, title]
+
+    // Fixed-date holidays
+    holidays.push([`${year}-01-01`, "New Year's Day"])
+    holidays.push([`${year}-02-14`, "Valentine's Day"])
+    holidays.push([`${year}-06-19`, 'Juneteenth'])
+    holidays.push([`${year}-07-04`, 'Independence Day'])
+    holidays.push([`${year}-10-31`, 'Halloween'])
+    holidays.push([`${year}-11-11`, "Veterans Day"])
+    holidays.push([`${year}-12-24`, 'Christmas Eve'])
+    holidays.push([`${year}-12-25`, 'Christmas Day'])
+    holidays.push([`${year}-12-31`, "New Year's Eve"])
+
+    // Floating holidays
+    // MLK Day: 3rd Monday in January
+    holidays.push([`${year}-01-${pad(nthWeekday(year, 0, 1, 3))}`, 'MLK Day'])
+    // Presidents' Day: 3rd Monday in February
+    holidays.push([`${year}-02-${pad(nthWeekday(year, 1, 1, 3))}`, "Presidents' Day"])
+    // Easter Sunday
+    const [eMonth, eDay] = easterSunday(year)
+    holidays.push([`${year}-${pad(eMonth + 1)}-${pad(eDay)}`, 'Easter Sunday'])
+    // Mother's Day: 2nd Sunday in May
+    holidays.push([`${year}-05-${pad(nthWeekday(year, 4, 0, 2))}`, "Mother's Day"])
+    // Memorial Day: last Monday in May
+    holidays.push([`${year}-05-${pad(lastWeekday(year, 4, 1))}`, 'Memorial Day'])
+    // Father's Day: 3rd Sunday in June
+    holidays.push([`${year}-06-${pad(nthWeekday(year, 5, 0, 3))}`, "Father's Day"])
+    // Labor Day: 1st Monday in September
+    holidays.push([`${year}-09-${pad(nthWeekday(year, 8, 1, 1))}`, 'Labor Day'])
+    // Thanksgiving: 4th Thursday in November
+    holidays.push([`${year}-11-${pad(nthWeekday(year, 10, 4, 4))}`, 'Thanksgiving'])
+
+    for (const [date, title] of holidays) {
+      db.run(
+        `INSERT INTO calendar_events (title, date, all_day, event_type) VALUES (?, ?, 1, 'holiday')`,
+        [title, date]
+      )
+    }
+  }
 }
 
 export function getDb(): Database {

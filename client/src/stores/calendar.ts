@@ -28,6 +28,7 @@ export interface CalendarEvent {
   person_name: string | null
   person_color: string | null
   recurring_group_id: string | null
+  event_type: string | null
 }
 
 export const useCalendarStore = defineStore('calendar', () => {
@@ -203,6 +204,24 @@ export const useCalendarStore = defineStore('calendar', () => {
     return newEvents
   }
 
+  async function addBirthdayEvent(data: {
+    title: string
+    date: string
+    person_id?: number | null
+    sync_account_ids?: number[]
+    years?: number
+  }) {
+    const res = await apiFetch('/api/calendar/events/birthday', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    if (!res.ok) return null
+    const newEvents: CalendarEvent[] = await res.json()
+    events.value.push(...newEvents)
+    return newEvents
+  }
+
   async function deleteEventSeries(groupId: string) {
     await apiFetch(`/api/calendar/events/series/${groupId}`, { method: 'DELETE' })
     events.value = events.value.filter(e => e.recurring_group_id !== groupId)
@@ -241,6 +260,7 @@ export const useCalendarStore = defineStore('calendar', () => {
     updateEvent,
     deleteEvent,
     addRecurringEvent,
+    addBirthdayEvent,
     deleteEventSeries,
     updateEventSeries
   }

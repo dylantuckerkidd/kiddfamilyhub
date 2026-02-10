@@ -27,7 +27,9 @@ const eventForm = ref({
   person_id: null as number | null,
   recurring: false,
   recurring_days: [] as number[],
-  recurring_months: 1
+  recurring_months: 1,
+  is_birthday: false,
+  birthday_years: 5
 })
 
 const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -194,6 +196,22 @@ function getEventStyle(event: CalendarEvent) {
       color: event.person_color
     }
   }
+  // Holiday events get indigo/blue
+  if (event.event_type === 'holiday') {
+    return {
+      backgroundColor: 'rgb(99, 102, 241, 0.2)',
+      borderLeft: '3px solid rgb(99, 102, 241)',
+      color: 'rgb(79, 70, 229)'
+    }
+  }
+  // Birthday events without a person color get pink/rose
+  if (event.event_type === 'birthday') {
+    return {
+      backgroundColor: 'rgb(244, 63, 94, 0.2)',
+      borderLeft: '3px solid rgb(244, 63, 94)',
+      color: 'rgb(225, 29, 72)'
+    }
+  }
   // Shared event - use a nice teal/cyan color that's readable in both modes
   return {
     backgroundColor: 'rgb(20, 184, 166, 0.2)',
@@ -301,7 +319,9 @@ function openAddEvent(dateStr: string) {
     person_id: null,
     recurring: false,
     recurring_days: [],
-    recurring_months: 1
+    recurring_months: 1,
+    is_birthday: false,
+    birthday_years: 5
   }
   selectedDate.value = dateStr
   showEventModal.value = true
@@ -323,7 +343,9 @@ function openEditEvent(event: CalendarEvent) {
     person_id: event.person_id,
     recurring: false,
     recurring_days: [],
-    recurring_months: 1
+    recurring_months: 1,
+    is_birthday: event.event_type === 'birthday',
+    birthday_years: 5
   }
   showEventModal.value = true
 }
@@ -354,6 +376,14 @@ async function saveEvent() {
       all_day: eventForm.value.all_day ? 1 : 0,
       sync_account_ids: eventForm.value.sync_account_ids,
       person_id: eventForm.value.person_id
+    })
+  } else if (eventForm.value.is_birthday) {
+    await store.addBirthdayEvent({
+      title: eventForm.value.title,
+      date: eventForm.value.date,
+      person_id: eventForm.value.person_id,
+      sync_account_ids: eventForm.value.sync_account_ids,
+      years: eventForm.value.birthday_years
     })
   } else if (eventForm.value.recurring && eventForm.value.recurring_days.length > 0) {
     await store.addRecurringEvent({
@@ -583,7 +613,7 @@ watch([currentDate, viewMode], () => {
               >
                 <template v-if="isStart">
                   <span v-if="event.time" class="opacity-75 hidden sm:inline">{{ formatTime(event.time) }}<template v-if="event.end_time && (!event.end_date || event.end_date === event.date)">-{{ formatTime(event.end_time) }}</template></span>
-                  {{ event.title }}
+                  <span v-if="event.event_type === 'holiday'">⭐ </span><span v-else-if="event.event_type === 'birthday'">🎂 </span>{{ event.title }}
                   <svg v-if="event.sync_account_ids?.length" class="w-2.5 h-2.5 sm:w-3 sm:h-3 inline-block opacity-50 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
                 </template>
                 <template v-else-if="isEnd && event.end_time">
@@ -655,7 +685,7 @@ watch([currentDate, viewMode], () => {
                 :style="getEventStyle(event)"
               >
                 <div class="font-medium text-sm flex items-center gap-1.5">
-                  {{ event.title }}
+                  <span v-if="event.event_type === 'holiday'">⭐ </span><span v-else-if="event.event_type === 'birthday'">🎂 </span>{{ event.title }}
                   <svg v-if="event.sync_account_ids?.length" class="w-3.5 h-3.5 flex-shrink-0 opacity-50" fill="currentColor" viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
                 </div>
                 <div v-if="!event.all_day && event.time" class="text-xs mt-1 opacity-75">
@@ -716,7 +746,7 @@ watch([currentDate, viewMode], () => {
                 :style="getEventStyle(event)"
               >
                 <div class="font-medium text-sm flex items-center gap-1.5">
-                  {{ event.title }}
+                  <span v-if="event.event_type === 'holiday'">⭐ </span><span v-else-if="event.event_type === 'birthday'">🎂 </span>{{ event.title }}
                   <svg v-if="event.sync_account_ids?.length" class="w-3.5 h-3.5 flex-shrink-0 opacity-50" fill="currentColor" viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
                 </div>
                 <div v-if="!event.all_day && event.time" class="text-xs mt-1 opacity-75">
@@ -781,7 +811,7 @@ watch([currentDate, viewMode], () => {
     >
       <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          {{ editingEvent ? 'Edit Event' : 'Add Event' }}
+          {{ editingEvent ? (eventForm.is_birthday ? 'Edit Birthday' : 'Edit Event') : (eventForm.is_birthday ? 'Add Birthday' : 'Add Event') }}
         </h3>
 
         <form @submit.prevent="saveEvent" class="space-y-4">
@@ -820,7 +850,7 @@ watch([currentDate, viewMode], () => {
           </div>
 
           <div class="flex items-center gap-4 flex-wrap">
-            <div class="flex items-center gap-2">
+            <div v-if="!eventForm.is_birthday" class="flex items-center gap-2">
               <input
                 v-model="eventForm.all_day"
                 type="checkbox"
@@ -829,7 +859,7 @@ watch([currentDate, viewMode], () => {
               />
               <label for="all_day" class="text-sm text-gray-700 dark:text-gray-300">All day</label>
             </div>
-            <div v-if="!eventForm.recurring" class="flex items-center gap-2">
+            <div v-if="!eventForm.recurring && !eventForm.is_birthday" class="flex items-center gap-2">
               <input
                 v-model="eventForm.multi_day"
                 type="checkbox"
@@ -853,7 +883,7 @@ watch([currentDate, viewMode], () => {
                 </label>
               </div>
             </template>
-            <div v-if="!editingEvent" class="flex items-center gap-2">
+            <div v-if="!editingEvent && !eventForm.is_birthday" class="flex items-center gap-2">
               <input
                 v-model="eventForm.recurring"
                 type="checkbox"
@@ -861,6 +891,16 @@ watch([currentDate, viewMode], () => {
                 class="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500"
               />
               <label for="recurring" class="text-sm text-gray-700 dark:text-gray-300">Recurring</label>
+            </div>
+            <div v-if="!editingEvent && !eventForm.recurring" class="flex items-center gap-2">
+              <input
+                v-model="eventForm.is_birthday"
+                type="checkbox"
+                id="is_birthday"
+                class="w-4 h-4 text-pink-500 rounded focus:ring-pink-500"
+                @change="if (eventForm.is_birthday) { eventForm.all_day = true; eventForm.multi_day = false; eventForm.recurring = false }"
+              />
+              <label for="is_birthday" class="text-sm text-gray-700 dark:text-gray-300">Birthday</label>
             </div>
           </div>
 
@@ -895,6 +935,21 @@ watch([currentDate, viewMode], () => {
                 <option :value="4">4 months</option>
                 <option :value="5">5 months</option>
                 <option :value="6">6 months</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Birthday options -->
+          <div v-if="eventForm.is_birthday && !editingEvent" class="space-y-3 p-3 bg-pink-50 dark:bg-pink-900/20 rounded-xl">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Years to create</label>
+              <select
+                v-model="eventForm.birthday_years"
+                class="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 text-gray-900 dark:text-white"
+              >
+                <option :value="3">3 years</option>
+                <option :value="5">5 years</option>
+                <option :value="10">10 years</option>
               </select>
             </div>
           </div>
