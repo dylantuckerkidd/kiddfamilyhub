@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useCalendarStore } from './calendar'
-import { apiFetch } from '@/composables/useApi'
+import { supabase } from '@/lib/supabase'
 
 export interface TodoCategory {
   id: number
@@ -14,7 +14,7 @@ export interface TodoSubtask {
   id: number
   todo_id: number
   title: string
-  completed: number
+  completed: boolean
   sort_order: number
 }
 
@@ -22,7 +22,7 @@ export interface TodoItem {
   id: number
   title: string
   description: string | null
-  completed: number
+  completed: boolean
   person_id: number | null
   due_date: string | null
   category_id: number | null
@@ -93,144 +93,177 @@ export const useTodosStore = defineStore('todos', () => {
   async function fetchTodos() {
     loading.value = true
     try {
-      const res = await apiFetch('/api/todos')
-      todos.value = await res.json()
+      const { data, error } = await supabase
+        .from('todo_items_full')
+        .select('*')
+        .order('sort_order', { ascending: true })
+      if (error) throw error
+      todos.value = data ?? []
     } finally {
       loading.value = false
     }
   }
 
   async function addTodo(data: { title: string; description?: string; person_id?: number | null; due_date?: string; category_id?: number | null }) {
-    const res = await apiFetch('/api/todos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    const todo = await res.json()
+    const { data: todo, error } = await supabase
+      .from('todo_items')
+      .insert({
+        title: data.title,
+        description: data.description || null,
+        person_id: data.person_id ?? null,
+        due_date: data.due_date || null,
+        category_id: data.category_id ?? null
+      })
+      .select('*')
+      .single()
+    if (error) throw error
     await fetchTodos()
     return todo
   }
 
   async function updateTodo(id: number, data: Partial<TodoItem>) {
-    const res = await apiFetch(`/api/todos/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    const updated = await res.json()
+    // Strip view-only fields
+    const { person_name, person_color, category_name, category_color, subtask_count, subtask_completed_count, ...updateData } = data as any
+    const { error } = await supabase
+      .from('todo_items')
+      .update(updateData)
+      .eq('id', id)
+    if (error) throw error
     await fetchTodos()
-    return updated
   }
 
   async function deleteTodo(id: number) {
-    await apiFetch(`/api/todos/${id}`, { method: 'DELETE' })
+    const { error } = await supabase
+      .from('todo_items')
+      .delete()
+      .eq('id', id)
+    if (error) throw error
     await fetchTodos()
   }
 
   async function clearCompleted() {
-    await apiFetch('/api/todos/clear-completed', { method: 'DELETE' })
+    const { error } = await supabase
+      .from('todo_items')
+      .delete()
+      .eq('completed', true)
+    if (error) throw error
     await fetchTodos()
   }
 
   // === Reorder ===
   async function reorderTodos(ids: number[]) {
-    await apiFetch('/api/todos/reorder', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids })
-    })
+    const { error } = await supabase.rpc('reorder_todos', { ids })
+    if (error) throw error
     await fetchTodos()
   }
 
   // === Categories ===
   async function fetchCategories() {
-    const res = await apiFetch('/api/todos/categories')
-    categories.value = await res.json()
+    const { data, error } = await supabase
+      .from('todo_categories')
+      .select('*')
+      .order('sort_order', { ascending: true })
+    if (error) throw error
+    categories.value = data ?? []
   }
 
   async function addCategory(name: string, color: string | null) {
-    const res = await apiFetch('/api/todos/categories', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, color })
-    })
-    const cat = await res.json()
+    const { data: cat, error } = await supabase
+      .from('todo_categories')
+      .insert({ name, color })
+      .select('*')
+      .single()
+    if (error) throw error
     await fetchCategories()
     return cat
   }
 
   async function updateCategory(id: number, data: { name?: string; color?: string | null }) {
-    await apiFetch(`/api/todos/categories/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
+    const { error } = await supabase
+      .from('todo_categories')
+      .update(data)
+      .eq('id', id)
+    if (error) throw error
     await fetchCategories()
   }
 
   async function deleteCategory(id: number) {
-    await apiFetch(`/api/todos/categories/${id}`, { method: 'DELETE' })
+    const { error } = await supabase
+      .from('todo_categories')
+      .delete()
+      .eq('id', id)
+    if (error) throw error
     await fetchCategories()
     await fetchTodos()
   }
 
   // === Subtasks ===
   async function fetchSubtasks(todoId: number): Promise<TodoSubtask[]> {
-    const res = await apiFetch(`/api/todos/${todoId}/subtasks`)
-    return await res.json()
+    const { data, error } = await supabase
+      .from('todo_subtasks')
+      .select('*')
+      .eq('todo_id', todoId)
+      .order('sort_order', { ascending: true })
+    if (error) throw error
+    return data ?? []
   }
 
   async function addSubtask(todoId: number, title: string): Promise<TodoSubtask> {
-    const res = await apiFetch(`/api/todos/${todoId}/subtasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title })
-    })
-    const subtask = await res.json()
+    const { data, error } = await supabase
+      .from('todo_subtasks')
+      .insert({ todo_id: todoId, title })
+      .select('*')
+      .single()
+    if (error) throw error
     await fetchTodos()
-    return subtask
+    return data
   }
 
-  async function updateSubtask(id: number, data: { title?: string; completed?: number }): Promise<TodoSubtask> {
-    const res = await apiFetch(`/api/todos/subtasks/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    const subtask = await res.json()
+  async function updateSubtask(id: number, data: { title?: string; completed?: boolean }): Promise<TodoSubtask> {
+    const { data: subtask, error } = await supabase
+      .from('todo_subtasks')
+      .update(data)
+      .eq('id', id)
+      .select('*')
+      .single()
+    if (error) throw error
     await fetchTodos()
     return subtask
   }
 
   async function deleteSubtask(id: number) {
-    await apiFetch(`/api/todos/subtasks/${id}`, { method: 'DELETE' })
+    const { error } = await supabase
+      .from('todo_subtasks')
+      .delete()
+      .eq('id', id)
+    if (error) throw error
     await fetchTodos()
   }
 
   async function reorderSubtasks(todoId: number, ids: number[]) {
-    await apiFetch(`/api/todos/${todoId}/subtasks/reorder`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids })
+    const { error } = await supabase.rpc('reorder_subtasks', {
+      p_todo_id: todoId,
+      ids
     })
+    if (error) throw error
   }
 
   // === Bulk Actions ===
-  async function bulkUpdate(ids: number[], updates: { person_id?: number | null; due_date?: string | null; category_id?: number | null; completed?: number }) {
-    await apiFetch('/api/todos/bulk', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids, updates })
-    })
+  async function bulkUpdate(ids: number[], updates: { person_id?: number | null; due_date?: string | null; category_id?: number | null; completed?: boolean }) {
+    const { error } = await supabase
+      .from('todo_items')
+      .update(updates)
+      .in('id', ids)
+    if (error) throw error
     await fetchTodos()
   }
 
   async function bulkDelete(ids: number[]) {
-    await apiFetch('/api/todos/bulk', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids })
-    })
+    const { error } = await supabase
+      .from('todo_items')
+      .delete()
+      .in('id', ids)
+    if (error) throw error
     await fetchTodos()
   }
 

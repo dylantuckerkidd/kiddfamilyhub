@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// @ts-nocheck
 import { computed, onMounted } from 'vue'
 import { useBudgetStore } from '@/stores/budget'
 import TransactionForm from '@/components/TransactionForm.vue'

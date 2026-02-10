@@ -23,8 +23,22 @@ const eventForm = ref({
   end_time: '',
   all_day: true,
   multi_day: false,
-  person_id: null as number | null
+  person_id: null as number | null,
+  recurring: false,
+  recurring_days: [] as number[],
+  recurring_months: 1
 })
+
+const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
+function toggleRecurringDay(day: number) {
+  const idx = eventForm.value.recurring_days.indexOf(day)
+  if (idx >= 0) {
+    eventForm.value.recurring_days.splice(idx, 1)
+  } else {
+    eventForm.value.recurring_days.push(day)
+  }
+}
 
 // Person form
 const personForm = ref({
@@ -282,7 +296,10 @@ function openAddEvent(dateStr: string) {
     end_time: '',
     all_day: true,
     multi_day: false,
-    person_id: null
+    person_id: null,
+    recurring: false,
+    recurring_days: [],
+    recurring_months: 1
   }
   selectedDate.value = dateStr
   showEventModal.value = true
@@ -298,9 +315,12 @@ function openEditEvent(event: CalendarEvent) {
     end_date: event.end_date || '',
     time: event.time || '',
     end_time: event.end_time || '',
-    all_day: event.all_day === 1,
+    all_day: !!event.all_day,
     multi_day: !!hasEndDate,
-    person_id: event.person_id
+    person_id: event.person_id,
+    recurring: false,
+    recurring_days: [],
+    recurring_months: 1
   }
   showEventModal.value = true
 }
@@ -319,8 +339,20 @@ async function saveEvent() {
       end_date: endDate,
       time: eventForm.value.all_day ? null : eventForm.value.time || null,
       end_time: endTime,
-      all_day: eventForm.value.all_day ? 1 : 0,
+      all_day: eventForm.value.all_day,
       person_id: eventForm.value.person_id
+    })
+  } else if (eventForm.value.recurring && eventForm.value.recurring_days.length > 0) {
+    await store.addRecurringEvent({
+      title: eventForm.value.title,
+      description: eventForm.value.description || undefined,
+      time: eventForm.value.all_day ? undefined : eventForm.value.time || undefined,
+      end_time: endTime || undefined,
+      all_day: eventForm.value.all_day,
+      person_id: eventForm.value.person_id,
+      days: eventForm.value.recurring_days,
+      start_date: eventForm.value.date,
+      months: eventForm.value.recurring_months
     })
   } else {
     await store.addEvent({
@@ -336,6 +368,32 @@ async function saveEvent() {
   }
 
   // Refetch events to ensure the calendar updates
+  await fetchEventsForView()
+  showEventModal.value = false
+}
+
+async function saveEventSeries() {
+  if (!editingEvent.value?.recurring_group_id) return
+
+  const endTime = !eventForm.value.all_day && eventForm.value.end_time ? eventForm.value.end_time : null
+
+  await store.updateEventSeries(editingEvent.value.recurring_group_id, {
+    title: eventForm.value.title,
+    description: eventForm.value.description || null,
+    time: eventForm.value.all_day ? null : eventForm.value.time || null,
+    end_time: endTime,
+    all_day: eventForm.value.all_day,
+    person_id: eventForm.value.person_id
+  } as any)
+
+  await fetchEventsForView()
+  showEventModal.value = false
+}
+
+async function deleteEventSeries() {
+  if (!editingEvent.value?.recurring_group_id) return
+
+  await store.deleteEventSeries(editingEvent.value.recurring_group_id)
   await fetchEventsForView()
   showEventModal.value = false
 }
@@ -578,7 +636,9 @@ watch([currentDate, viewMode], () => {
                 class="p-3 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
                 :style="getEventStyle(event)"
               >
-                <div class="font-medium text-sm">{{ event.title }}</div>
+                <div class="font-medium text-sm flex items-center gap-1.5">
+                  {{ event.title }}
+                </div>
                 <div v-if="!event.all_day && event.time" class="text-xs mt-1 opacity-75">
                   {{ formatTime(event.time) }}
                   <template v-if="event.end_time">- {{ formatTime(event.end_time) }}</template>
@@ -636,7 +696,9 @@ watch([currentDate, viewMode], () => {
                 class="p-3 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
                 :style="getEventStyle(event)"
               >
-                <div class="font-medium text-sm">{{ event.title }}</div>
+                <div class="font-medium text-sm flex items-center gap-1.5">
+                  {{ event.title }}
+                </div>
                 <div v-if="!event.all_day && event.time" class="text-xs mt-1 opacity-75">
                   {{ formatTime(event.time) }}
                   <template v-if="event.end_time">- {{ formatTime(event.end_time) }}</template>
@@ -737,7 +799,7 @@ watch([currentDate, viewMode], () => {
             </div>
           </div>
 
-          <div class="flex items-center gap-4">
+          <div class="flex items-center gap-4 flex-wrap">
             <div class="flex items-center gap-2">
               <input
                 v-model="eventForm.all_day"
@@ -747,7 +809,7 @@ watch([currentDate, viewMode], () => {
               />
               <label for="all_day" class="text-sm text-gray-700 dark:text-gray-300">All day</label>
             </div>
-            <div class="flex items-center gap-2">
+            <div v-if="!eventForm.recurring" class="flex items-center gap-2">
               <input
                 v-model="eventForm.multi_day"
                 type="checkbox"
@@ -755,6 +817,50 @@ watch([currentDate, viewMode], () => {
                 class="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500"
               />
               <label for="multi_day" class="text-sm text-gray-700 dark:text-gray-300">Multi-day</label>
+            </div>
+            <div v-if="!editingEvent" class="flex items-center gap-2">
+              <input
+                v-model="eventForm.recurring"
+                type="checkbox"
+                id="recurring"
+                class="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500"
+              />
+              <label for="recurring" class="text-sm text-gray-700 dark:text-gray-300">Recurring</label>
+            </div>
+          </div>
+
+          <!-- Recurring options -->
+          <div v-if="eventForm.recurring && !editingEvent" class="space-y-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Days of week</label>
+              <div class="flex gap-1.5">
+                <button
+                  v-for="(label, idx) in dayLabels"
+                  :key="idx"
+                  type="button"
+                  @click="toggleRecurringDay(idx)"
+                  class="w-9 h-9 rounded-full text-sm font-medium transition-colors"
+                  :class="eventForm.recurring_days.includes(idx)
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'"
+                >
+                  {{ label }}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Duration</label>
+              <select
+                v-model="eventForm.recurring_months"
+                class="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+              >
+                <option :value="1">1 month</option>
+                <option :value="2">2 months</option>
+                <option :value="3">3 months</option>
+                <option :value="4">4 months</option>
+                <option :value="5">5 months</option>
+                <option :value="6">6 months</option>
+              </select>
             </div>
           </div>
 
@@ -800,26 +906,43 @@ watch([currentDate, viewMode], () => {
             ></textarea>
           </div>
 
-          <div class="flex gap-3 pt-2">
+          <div class="flex gap-2 pt-2 flex-wrap">
             <button
               v-if="editingEvent"
               type="button"
               @click="deleteEvent"
-              class="px-4 py-2.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+              class="px-4 py-2.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-sm"
             >
               Delete
+            </button>
+            <button
+              v-if="editingEvent?.recurring_group_id"
+              type="button"
+              @click="deleteEventSeries"
+              class="px-4 py-2.5 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors text-sm"
+            >
+              Delete Series
             </button>
             <div class="flex-1"></div>
             <button
               type="button"
               @click="showEventModal = false"
-              class="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              class="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm"
             >
               Cancel
             </button>
             <button
+              v-if="editingEvent?.recurring_group_id"
+              type="button"
+              @click="saveEventSeries"
+              class="px-4 py-2.5 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 transition-colors text-sm"
+            >
+              Save Series
+            </button>
+            <button
               type="submit"
-              class="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
+              :disabled="eventForm.recurring && eventForm.recurring_days.length === 0"
+              class="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
               {{ editingEvent ? 'Save' : 'Add' }}
             </button>

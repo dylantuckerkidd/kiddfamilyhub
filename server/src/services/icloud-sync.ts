@@ -9,6 +9,7 @@ interface CalendarEvent {
   end_date?: string | null
   end_time?: string | null
   all_day?: number | boolean
+  color?: string | null
 }
 
 let client: DAVClient | null = null
@@ -142,6 +143,11 @@ function buildICS(uid: string, event: CalendarEvent): string {
 
   if (event.description) {
     lines.push(`DESCRIPTION:${escapeICS(event.description)}`)
+  }
+
+  if (event.color) {
+    lines.push(`COLOR:${event.color}`)
+    lines.push(`X-APPLE-CALENDAR-COLOR:${event.color}`)
   }
 
   lines.push('END:VEVENT', 'END:VCALENDAR')
