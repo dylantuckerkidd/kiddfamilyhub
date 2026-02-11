@@ -21,6 +21,7 @@ export interface CalendarEvent {
   person_name: string | null
   person_color: string | null
   recurring_group_id: string | null
+  event_type: string | null
 }
 
 export const useCalendarStore = defineStore('calendar', () => {
@@ -107,6 +108,7 @@ export const useCalendarStore = defineStore('calendar', () => {
     end_time?: string
     all_day?: boolean
     person_id?: number | null
+    event_type?: string | null
   }) {
     const { data, error } = await supabase
       .from('calendar_events')
@@ -118,7 +120,8 @@ export const useCalendarStore = defineStore('calendar', () => {
         end_date: event.end_date || null,
         end_time: event.all_day ? null : event.end_time || null,
         all_day: event.all_day ?? true,
-        person_id: event.person_id ?? null
+        person_id: event.person_id ?? null,
+        event_type: event.event_type || null
       })
       .select('*')
       .single()
@@ -127,6 +130,50 @@ export const useCalendarStore = defineStore('calendar', () => {
     // Refetch to get joined person data from view
     await fetchEvents()
     return data
+  }
+
+  async function addBirthdayEvent(data: {
+    title: string
+    date: string
+    person_id?: number | null
+    years?: number
+  }) {
+    const groupId = crypto.randomUUID()
+    const baseDate = new Date(data.date + 'T00:00:00')
+    const years = data.years || 5
+
+    const eventRows: Array<{
+      title: string
+      date: string
+      all_day: boolean
+      person_id: number | null
+      recurring_group_id: string
+      event_type: string
+    }> = []
+
+    for (let y = 0; y < years; y++) {
+      const eventDate = new Date(baseDate)
+      eventDate.setFullYear(baseDate.getFullYear() + y)
+      const dateStr = `${eventDate.getFullYear()}-${String(eventDate.getMonth() + 1).padStart(2, '0')}-${String(eventDate.getDate()).padStart(2, '0')}`
+      eventRows.push({
+        title: data.title,
+        date: dateStr,
+        all_day: true,
+        person_id: data.person_id ?? null,
+        recurring_group_id: groupId,
+        event_type: 'birthday'
+      })
+    }
+
+    if (eventRows.length === 0) return null
+
+    const { error } = await supabase
+      .from('calendar_events')
+      .insert(eventRows)
+    if (error) throw error
+
+    await fetchEvents()
+    return events.value.filter(e => e.recurring_group_id === groupId)
   }
 
   async function updateEvent(id: number, data: Partial<CalendarEvent>) {
@@ -245,6 +292,7 @@ export const useCalendarStore = defineStore('calendar', () => {
     updateEvent,
     deleteEvent,
     addRecurringEvent,
+    addBirthdayEvent,
     deleteEventSeries,
     updateEventSeries
   }

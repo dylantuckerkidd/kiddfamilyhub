@@ -7,7 +7,8 @@ const store = useCalendarStore()
 const todosStore = useTodosStore()
 
 const currentDate = ref(new Date())
-const viewMode = ref<'month' | 'week'>('month')
+const viewMode = ref<'month' | 'week' | 'agenda'>('month')
+const agendaDays = ref(30)
 const showEventModal = ref(false)
 const showPersonModal = ref(false)
 const selectedDate = ref('')
@@ -26,7 +27,9 @@ const eventForm = ref({
   person_id: null as number | null,
   recurring: false,
   recurring_days: [] as number[],
-  recurring_months: 1
+  recurring_months: 1,
+  is_birthday: false,
+  birthday_years: 5
 })
 
 const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -179,11 +182,46 @@ const eventsByDate = computed(() => {
   return map
 })
 
-const isToday = (dateStr: string) => {
+const todayStr = computed(() => {
   const now = new Date()
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  return dateStr === today
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+})
+
+const isToday = (dateStr: string) => {
+  return dateStr === todayStr.value
 }
+
+// Agenda view computeds
+const agendaItems = computed(() => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const items: { dateStr: string; label: string; relativeLabel: string | null; events: CalendarEvent[]; todos: TodoItem[] }[] = []
+
+  for (let i = 0; i < agendaDays.value; i++) {
+    const date = new Date(today)
+    date.setDate(date.getDate() + i)
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+
+    const events = getEventsForDay(dateStr)
+    const todos = getTodosForDay(dateStr)
+
+    if (events.length === 0 && todos.length === 0) continue
+
+    let relativeLabel: string | null = null
+    if (i === 0) relativeLabel = 'Today'
+    else if (i === 1) relativeLabel = 'Tomorrow'
+
+    items.push({
+      dateStr,
+      label: date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+      relativeLabel,
+      events,
+      todos
+    })
+  }
+
+  return items
+})
 
 function getEventStyle(event: CalendarEvent) {
   if (event.person_color) {
@@ -191,6 +229,22 @@ function getEventStyle(event: CalendarEvent) {
       backgroundColor: event.person_color + '30',
       borderLeft: `3px solid ${event.person_color}`,
       color: event.person_color
+    }
+  }
+  // Holiday events get indigo/blue
+  if (event.event_type === 'holiday') {
+    return {
+      backgroundColor: 'rgb(99, 102, 241, 0.2)',
+      borderLeft: '3px solid rgb(99, 102, 241)',
+      color: 'rgb(79, 70, 229)'
+    }
+  }
+  // Birthday events without a person color get pink/rose
+  if (event.event_type === 'birthday') {
+    return {
+      backgroundColor: 'rgb(244, 63, 94, 0.2)',
+      borderLeft: '3px solid rgb(244, 63, 94)',
+      color: 'rgb(225, 29, 72)'
     }
   }
   // Shared event - use a nice teal/cyan color that's readable in both modes
@@ -229,19 +283,13 @@ function nextWeek() {
 }
 
 function prev() {
-  if (viewMode.value === 'month') {
-    prevMonth()
-  } else {
-    prevWeek()
-  }
+  if (viewMode.value === 'month') prevMonth()
+  else if (viewMode.value === 'week') prevWeek()
 }
 
 function next() {
-  if (viewMode.value === 'month') {
-    nextMonth()
-  } else {
-    nextWeek()
-  }
+  if (viewMode.value === 'month') nextMonth()
+  else if (viewMode.value === 'week') nextWeek()
 }
 
 function goToToday() {
@@ -280,7 +328,7 @@ function fetchEventsForView() {
   if (viewMode.value === 'month') {
     store.fetchEvents(currentMonth.value + 1, currentYear.value)
   } else {
-    // For week view, fetch all events (the API returns all if no month specified)
+    // For week/agenda view, fetch all events
     store.fetchEvents()
   }
 }
@@ -299,7 +347,9 @@ function openAddEvent(dateStr: string) {
     person_id: null,
     recurring: false,
     recurring_days: [],
-    recurring_months: 1
+    recurring_months: 1,
+    is_birthday: false,
+    birthday_years: 5
   }
   selectedDate.value = dateStr
   showEventModal.value = true
@@ -320,7 +370,9 @@ function openEditEvent(event: CalendarEvent) {
     person_id: event.person_id,
     recurring: false,
     recurring_days: [],
-    recurring_months: 1
+    recurring_months: 1,
+    is_birthday: event.event_type === 'birthday',
+    birthday_years: 5
   }
   showEventModal.value = true
 }
@@ -341,6 +393,13 @@ async function saveEvent() {
       end_time: endTime,
       all_day: eventForm.value.all_day,
       person_id: eventForm.value.person_id
+    })
+  } else if (eventForm.value.is_birthday) {
+    await store.addBirthdayEvent({
+      title: eventForm.value.title,
+      date: eventForm.value.date,
+      person_id: eventForm.value.person_id,
+      years: eventForm.value.birthday_years
     })
   } else if (eventForm.value.recurring && eventForm.value.recurring_days.length > 0) {
     await store.addRecurringEvent({
@@ -461,6 +520,7 @@ watch([currentDate, viewMode], () => {
       <!-- Calendar Header -->
       <div class="flex items-center justify-between p-3 sm:p-4 border-b border-gray-100 dark:border-gray-700">
         <button
+          v-if="viewMode !== 'agenda'"
           @click="prev"
           class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
         >
@@ -468,13 +528,28 @@ watch([currentDate, viewMode], () => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
           </svg>
         </button>
+        <div v-else class="w-9"></div>
 
         <div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
-          <h2 class="text-base sm:text-xl font-semibold text-gray-900 dark:text-white text-center">
-            {{ viewMode === 'month' ? monthName : weekLabel }}
-          </h2>
+          <div class="flex items-center gap-3">
+            <h2 class="text-base sm:text-xl font-semibold text-gray-900 dark:text-white text-center">
+              {{ viewMode === 'month' ? monthName : viewMode === 'week' ? weekLabel : 'Upcoming Events' }}
+            </h2>
+            <select
+              v-if="viewMode === 'agenda'"
+              v-model="agendaDays"
+              class="px-2 py-1 text-xs sm:text-sm bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+            >
+              <option :value="7">7 days</option>
+              <option :value="14">14 days</option>
+              <option :value="30">30 days</option>
+              <option :value="60">60 days</option>
+              <option :value="90">90 days</option>
+            </select>
+          </div>
           <div class="flex items-center gap-2">
             <button
+              v-if="viewMode !== 'agenda'"
               @click="goToToday"
               class="px-3 py-1 text-xs sm:text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
             >
@@ -496,11 +571,20 @@ watch([currentDate, viewMode], () => {
               >
                 Month
               </button>
+              <button
+                @click="viewMode = 'agenda'"
+                class="px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-md transition-colors"
+                :class="viewMode === 'agenda' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400'"
+              >
+                <span class="hidden sm:inline">Agenda</span>
+                <span class="sm:hidden">List</span>
+              </button>
             </div>
           </div>
         </div>
 
         <button
+          v-if="viewMode !== 'agenda'"
           @click="next"
           class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
         >
@@ -508,6 +592,7 @@ watch([currentDate, viewMode], () => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
         </button>
+        <div v-else class="w-9"></div>
       </div>
 
       <!-- MONTH VIEW -->
@@ -566,7 +651,7 @@ watch([currentDate, viewMode], () => {
               >
                 <template v-if="isStart">
                   <span v-if="event.time" class="opacity-75 hidden sm:inline">{{ formatTime(event.time) }}<template v-if="event.end_time && (!event.end_date || event.end_date === event.date)">-{{ formatTime(event.end_time) }}</template></span>
-                  {{ event.title }}
+                  <span v-if="event.event_type === 'holiday'">&#x2B50; </span><span v-else-if="event.event_type === 'birthday'">&#x1F382; </span>{{ event.title }}
                 </template>
                 <template v-else-if="isEnd && event.end_time">
                   <span class="opacity-75 hidden sm:inline">ends {{ formatTime(event.end_time) }}</span>
@@ -601,7 +686,7 @@ watch([currentDate, viewMode], () => {
       </template>
 
       <!-- WEEK VIEW -->
-      <template v-else>
+      <template v-else-if="viewMode === 'week'">
         <!-- Mobile: stacked list -->
         <div class="flex flex-col md:hidden divide-y divide-gray-100 dark:divide-gray-700">
           <div
@@ -637,7 +722,7 @@ watch([currentDate, viewMode], () => {
                 :style="getEventStyle(event)"
               >
                 <div class="font-medium text-sm flex items-center gap-1.5">
-                  {{ event.title }}
+                  <span v-if="event.event_type === 'holiday'">&#x2B50; </span><span v-else-if="event.event_type === 'birthday'">&#x1F382; </span>{{ event.title }}
                 </div>
                 <div v-if="!event.all_day && event.time" class="text-xs mt-1 opacity-75">
                   {{ formatTime(event.time) }}
@@ -697,7 +782,7 @@ watch([currentDate, viewMode], () => {
                 :style="getEventStyle(event)"
               >
                 <div class="font-medium text-sm flex items-center gap-1.5">
-                  {{ event.title }}
+                  <span v-if="event.event_type === 'holiday'">&#x2B50; </span><span v-else-if="event.event_type === 'birthday'">&#x1F382; </span>{{ event.title }}
                 </div>
                 <div v-if="!event.all_day && event.time" class="text-xs mt-1 opacity-75">
                   {{ formatTime(event.time) }}
@@ -738,6 +823,76 @@ watch([currentDate, viewMode], () => {
           </div>
         </div>
       </template>
+
+      <!-- AGENDA VIEW -->
+      <template v-else-if="viewMode === 'agenda'">
+        <div v-if="agendaItems.length === 0" class="p-8 sm:p-16 text-center">
+          <div class="text-gray-400 dark:text-gray-500 text-4xl mb-3">&#x1F4C5;</div>
+          <p class="text-gray-500 dark:text-gray-400 font-medium">No upcoming events</p>
+          <p class="text-gray-400 dark:text-gray-500 text-sm mt-1">Nothing scheduled in the next {{ agendaDays }} days</p>
+        </div>
+
+        <div v-else class="divide-y divide-gray-100 dark:divide-gray-700">
+          <div v-for="day in agendaItems" :key="day.dateStr" class="p-3 sm:p-4">
+            <!-- Date header -->
+            <div class="flex items-center gap-2 mb-2 sm:mb-3">
+              <div
+                class="text-sm sm:text-base font-semibold"
+                :class="isToday(day.dateStr) ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-900 dark:text-white'"
+              >
+                {{ day.label }}
+              </div>
+              <span
+                v-if="day.relativeLabel"
+                class="px-2 py-0.5 text-xs font-medium rounded-full"
+                :class="day.relativeLabel === 'Today' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'"
+              >
+                {{ day.relativeLabel }}
+              </span>
+            </div>
+
+            <!-- Events and todos for this day -->
+            <div class="space-y-2 sm:ml-2">
+              <!-- Events -->
+              <div
+                v-for="event in day.events"
+                :key="event.id"
+                @click="openEditEvent(event)"
+                class="p-3 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                :style="getEventStyle(event)"
+              >
+                <div class="font-medium text-sm flex items-center gap-1.5">
+                  <span v-if="event.event_type === 'holiday'">&#x2B50; </span>
+                  <span v-else-if="event.event_type === 'birthday'">&#x1F382; </span>
+                  {{ event.title }}
+                </div>
+                <div v-if="!event.all_day && event.time" class="text-xs mt-1 opacity-75">
+                  {{ formatTime(event.time) }}
+                  <template v-if="event.end_time">- {{ formatTime(event.end_time) }}</template>
+                </div>
+                <div v-else-if="event.all_day" class="text-xs mt-1 opacity-75">All day</div>
+                <div v-if="event.person_name" class="text-xs mt-1 opacity-75">{{ event.person_name }}</div>
+              </div>
+
+              <!-- Todos -->
+              <div
+                v-for="todo in day.todos"
+                :key="`todo-${todo.id}`"
+                class="p-3 rounded-lg"
+                :style="getTodoStyle(todo)"
+              >
+                <div class="font-medium text-sm flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  {{ todo.title }}
+                </div>
+                <div v-if="todo.person_name" class="text-xs mt-1 opacity-75">{{ todo.person_name }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
       </template>
     </div>
 
@@ -761,7 +916,7 @@ watch([currentDate, viewMode], () => {
     >
       <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          {{ editingEvent ? 'Edit Event' : 'Add Event' }}
+          {{ editingEvent ? (eventForm.is_birthday ? 'Edit Birthday' : 'Edit Event') : (eventForm.is_birthday ? 'Add Birthday' : 'Add Event') }}
         </h3>
 
         <form @submit.prevent="saveEvent" class="space-y-4">
@@ -800,7 +955,7 @@ watch([currentDate, viewMode], () => {
           </div>
 
           <div class="flex items-center gap-4 flex-wrap">
-            <div class="flex items-center gap-2">
+            <div v-if="!eventForm.is_birthday" class="flex items-center gap-2">
               <input
                 v-model="eventForm.all_day"
                 type="checkbox"
@@ -809,7 +964,7 @@ watch([currentDate, viewMode], () => {
               />
               <label for="all_day" class="text-sm text-gray-700 dark:text-gray-300">All day</label>
             </div>
-            <div v-if="!eventForm.recurring" class="flex items-center gap-2">
+            <div v-if="!eventForm.recurring && !eventForm.is_birthday" class="flex items-center gap-2">
               <input
                 v-model="eventForm.multi_day"
                 type="checkbox"
@@ -818,7 +973,7 @@ watch([currentDate, viewMode], () => {
               />
               <label for="multi_day" class="text-sm text-gray-700 dark:text-gray-300">Multi-day</label>
             </div>
-            <div v-if="!editingEvent" class="flex items-center gap-2">
+            <div v-if="!editingEvent && !eventForm.is_birthday" class="flex items-center gap-2">
               <input
                 v-model="eventForm.recurring"
                 type="checkbox"
@@ -826,6 +981,16 @@ watch([currentDate, viewMode], () => {
                 class="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500"
               />
               <label for="recurring" class="text-sm text-gray-700 dark:text-gray-300">Recurring</label>
+            </div>
+            <div v-if="!editingEvent && !eventForm.recurring" class="flex items-center gap-2">
+              <input
+                v-model="eventForm.is_birthday"
+                type="checkbox"
+                id="is_birthday"
+                class="w-4 h-4 text-pink-500 rounded focus:ring-pink-500"
+                @change="if (eventForm.is_birthday) { eventForm.all_day = true; eventForm.multi_day = false; eventForm.recurring = false }"
+              />
+              <label for="is_birthday" class="text-sm text-gray-700 dark:text-gray-300">Birthday</label>
             </div>
           </div>
 
@@ -860,6 +1025,21 @@ watch([currentDate, viewMode], () => {
                 <option :value="4">4 months</option>
                 <option :value="5">5 months</option>
                 <option :value="6">6 months</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Birthday options -->
+          <div v-if="eventForm.is_birthday && !editingEvent" class="space-y-3 p-3 bg-pink-50 dark:bg-pink-900/20 rounded-xl">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Years to create</label>
+              <select
+                v-model="eventForm.birthday_years"
+                class="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 text-gray-900 dark:text-white"
+              >
+                <option :value="3">3 years</option>
+                <option :value="5">5 years</option>
+                <option :value="10">10 years</option>
               </select>
             </div>
           </div>

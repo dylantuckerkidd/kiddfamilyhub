@@ -27,6 +27,7 @@ CREATE TABLE calendar_events (
   all_day BOOLEAN DEFAULT TRUE,
   person_id BIGINT REFERENCES family_members(id) ON DELETE SET NULL,
   recurring_group_id TEXT,
+  event_type TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -383,3 +384,146 @@ INSERT INTO grocery_item_history (user_id, name, category, use_count) VALUES
   (NULL, 'Napkins', 'Household', 0), (NULL, 'Zip Bags', 'Household', 0),
   (NULL, 'Hand Soap', 'Household', 0), (NULL, 'Tissues', 'Household', 0)
 ON CONFLICT DO NOTHING;
+
+-- ============================================
+-- 6. MAINTENANCE LOG TABLES
+-- ============================================
+
+-- Maintenance Categories
+CREATE TABLE maintenance_categories (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  icon TEXT,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TRIGGER set_user_id_maintenance_categories BEFORE INSERT ON maintenance_categories FOR EACH ROW EXECUTE FUNCTION set_user_id();
+
+ALTER TABLE maintenance_categories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users_own_data" ON maintenance_categories
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Maintenance Items
+CREATE TABLE maintenance_items (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  category_id BIGINT REFERENCES maintenance_categories(id) ON DELETE SET NULL,
+  person_id BIGINT REFERENCES family_members(id) ON DELETE SET NULL,
+  frequency TEXT NOT NULL DEFAULT 'monthly',
+  frequency_days INTEGER,
+  next_due_date TEXT,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TRIGGER set_user_id_maintenance_items BEFORE INSERT ON maintenance_items FOR EACH ROW EXECUTE FUNCTION set_user_id();
+
+ALTER TABLE maintenance_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users_own_data" ON maintenance_items
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Maintenance History
+CREATE TABLE maintenance_history (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  item_id BIGINT NOT NULL REFERENCES maintenance_items(id) ON DELETE CASCADE,
+  completed_date TEXT NOT NULL,
+  notes TEXT,
+  cost REAL,
+  person_id BIGINT REFERENCES family_members(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE maintenance_history ENABLE ROW LEVEL SECURITY;
+
+-- RLS via parent item ownership
+CREATE POLICY "users_own_via_parent" ON maintenance_history
+  FOR ALL
+  USING (EXISTS (SELECT 1 FROM maintenance_items WHERE id = maintenance_history.item_id AND user_id = auth.uid()))
+  WITH CHECK (EXISTS (SELECT 1 FROM maintenance_items WHERE id = maintenance_history.item_id AND user_id = auth.uid()));
+
+-- View: maintenance items with category, person, and last completed date
+CREATE VIEW maintenance_items_full AS
+SELECT
+  i.*,
+  c.name AS category_name,
+  c.icon AS category_icon,
+  m.name AS person_name,
+  m.color AS person_color,
+  (SELECT MAX(h.completed_date) FROM maintenance_history h WHERE h.item_id = i.id) AS last_completed
+FROM maintenance_items i
+LEFT JOIN maintenance_categories c ON i.category_id = c.id
+LEFT JOIN family_members m ON i.person_id = m.id;
+
+-- View: maintenance history with person info
+CREATE VIEW maintenance_history_with_person AS
+SELECT
+  h.*,
+  m.name AS person_name,
+  m.color AS person_color
+FROM maintenance_history h
+LEFT JOIN family_members m ON h.person_id = m.id;
+
+-- RPC: Complete a maintenance item (insert history + auto-calculate next due date)
+CREATE OR REPLACE FUNCTION complete_maintenance_item(
+  p_item_id BIGINT,
+  p_completed_date TEXT DEFAULT NULL,
+  p_notes TEXT DEFAULT NULL,
+  p_cost REAL DEFAULT NULL,
+  p_person_id BIGINT DEFAULT NULL
+)
+RETURNS maintenance_history
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_item maintenance_items;
+  v_history maintenance_history;
+  v_next_date DATE;
+  v_freq_days INTEGER;
+  v_completed DATE;
+BEGIN
+  -- Verify ownership
+  SELECT * INTO v_item FROM maintenance_items WHERE id = p_item_id AND user_id = auth.uid();
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Unauthorized or item not found';
+  END IF;
+
+  v_completed := COALESCE(p_completed_date::DATE, CURRENT_DATE);
+
+  -- Insert history record
+  INSERT INTO maintenance_history (item_id, completed_date, notes, cost, person_id)
+  VALUES (p_item_id, COALESCE(p_completed_date, CURRENT_DATE::TEXT), p_notes, p_cost, p_person_id)
+  RETURNING * INTO v_history;
+
+  -- Calculate next due date based on frequency
+  CASE v_item.frequency
+    WHEN 'weekly' THEN v_freq_days := 7;
+    WHEN 'monthly' THEN v_freq_days := 30;
+    WHEN 'quarterly' THEN v_freq_days := 90;
+    WHEN 'biannual' THEN v_freq_days := 180;
+    WHEN 'annual' THEN v_freq_days := 365;
+    WHEN 'custom' THEN v_freq_days := COALESCE(v_item.frequency_days, 30);
+    ELSE v_freq_days := 30;
+  END CASE;
+
+  v_next_date := v_completed + v_freq_days;
+
+  UPDATE maintenance_items
+  SET next_due_date = v_next_date::TEXT
+  WHERE id = p_item_id;
+
+  RETURN v_history;
+END;
+$$;
+
+-- NOTE: Default maintenance categories should be seeded per-user
+-- via the client when they first access the maintenance feature.
