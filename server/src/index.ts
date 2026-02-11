@@ -12,6 +12,7 @@ import categoriesRouter from './routes/categories.js'
 import calendarRouter from './routes/calendar.js'
 import groceryRouter from './routes/grocery.js'
 import todosRouter from './routes/todos.js'
+import maintenanceRouter from './routes/maintenance.js'
 import authRouter, { isValidToken } from './routes/auth.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -54,6 +55,7 @@ app.use('/api/categories', categoriesRouter)
 app.use('/api/calendar', calendarRouter)
 app.use('/api/grocery', groceryRouter)
 app.use('/api/todos', todosRouter)
+app.use('/api/maintenance', maintenanceRouter)
 
 app.get('/api/health', (_, res) => {
   res.json({ status: 'ok' })

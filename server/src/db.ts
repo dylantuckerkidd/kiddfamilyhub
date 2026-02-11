@@ -324,6 +324,70 @@ export async function initDb(): Promise<Database> {
     db.run(`ALTER TABLE transactions ADD COLUMN plaid_transaction_id TEXT`)
   }
 
+  // Maintenance categories table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS maintenance_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      icon TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // Maintenance items table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS maintenance_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      category_id INTEGER,
+      person_id INTEGER,
+      frequency TEXT CHECK(frequency IN ('weekly','monthly','quarterly','biannual','annual','custom')) NOT NULL DEFAULT 'monthly',
+      frequency_days INTEGER,
+      next_due_date TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (category_id) REFERENCES maintenance_categories(id) ON DELETE SET NULL,
+      FOREIGN KEY (person_id) REFERENCES family_members(id) ON DELETE SET NULL
+    )
+  `)
+
+  // Maintenance history table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS maintenance_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_id INTEGER NOT NULL,
+      completed_date TEXT NOT NULL,
+      notes TEXT,
+      cost REAL,
+      person_id INTEGER,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (item_id) REFERENCES maintenance_items(id) ON DELETE CASCADE,
+      FOREIGN KEY (person_id) REFERENCES family_members(id) ON DELETE SET NULL
+    )
+  `)
+
+  // Seed default maintenance categories
+  const defaultMaintenanceCategories: [string, string, number][] = [
+    ['HVAC', '🌡️', 1],
+    ['Plumbing', '🔧', 2],
+    ['Electrical', '⚡', 3],
+    ['Appliances', '🏠', 4],
+    ['Exterior', '🏡', 5],
+    ['Roof & Gutters', '🪜', 6],
+    ['Lawn & Garden', '🌿', 7],
+    ['Vehicles', '🚗', 8],
+    ['Safety', '🔒', 9],
+    ['General', '🔩', 10],
+  ]
+  for (const [name, icon, sortOrder] of defaultMaintenanceCategories) {
+    db.run(
+      `INSERT OR IGNORE INTO maintenance_categories (name, icon, sort_order) VALUES (?, ?, ?)`,
+      [name, icon, sortOrder]
+    )
+  }
+
   // Seed major US holidays
   seedHolidays()
 
