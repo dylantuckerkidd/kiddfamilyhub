@@ -14,34 +14,14 @@ const router = createRouter({
       component: () => import('@/views/LoginView.vue')
     },
     {
-      path: '/budget',
-      name: 'budget-dashboard',
-      component: () => import('@/views/HomeView.vue')
-    },
-    {
-      path: '/budget/transactions',
-      name: 'transactions',
-      component: () => import('@/views/TransactionsView.vue')
-    },
-    {
-      path: '/budget/budgets',
-      name: 'budgets',
-      component: () => import('@/views/BudgetsView.vue')
-    },
-    {
-      path: '/budget/analytics',
-      name: 'analytics',
-      component: () => import('@/views/AnalyticsView.vue')
-    },
-    {
-      path: '/settings',
-      name: 'settings',
-      component: () => import('@/views/SettingsView.vue')
-    },
-    {
       path: '/calendar',
       name: 'calendar',
       component: () => import('@/views/CalendarView.vue')
+    },
+    {
+      path: '/weather',
+      name: 'weather',
+      component: () => import('@/views/WeatherView.vue')
     },
     {
       path: '/grocery',
@@ -57,37 +37,30 @@ const router = createRouter({
       path: '/maintenance',
       name: 'maintenance',
       component: () => import('@/views/MaintenanceLogView.vue')
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@/views/SettingsView.vue')
     }
   ]
 })
 
-let verified = false
-
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
 
+  // Wait for auth to initialize
+  if (auth.loading) {
+    await auth.initialize()
+  }
+
   if (to.path === '/login') {
-    if (auth.isAuthenticated) {
-      const valid = await auth.verify()
-      if (valid) {
-        verified = true
-        return '/'
-      }
-    }
+    if (auth.isAuthenticated) return '/'
     return true
   }
 
   if (!auth.isAuthenticated) {
     return '/login'
-  }
-
-  // Verify token server-side once per page load
-  if (!verified) {
-    const valid = await auth.verify()
-    if (!valid) {
-      return '/login'
-    }
-    verified = true
   }
 
   return true

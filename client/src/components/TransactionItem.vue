@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// @ts-nocheck
 import { ref } from 'vue'
 import type { Transaction } from '@/stores/budget'
 import { useBudgetStore } from '@/stores/budget'

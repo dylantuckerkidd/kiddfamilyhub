@@ -123,7 +123,7 @@ async function quickAdd() {
 }
 
 async function toggleComplete(todo: TodoItem) {
-  await store.updateTodo(todo.id, { completed: todo.completed ? 0 : 1 })
+  await store.updateTodo(todo.id, { completed: !todo.completed })
 }
 
 function openEditTodo(todo: TodoItem) {
@@ -188,7 +188,7 @@ async function addSubtask() {
 }
 
 async function toggleSubtask(subtask: TodoSubtask) {
-  const updated = await store.updateSubtask(subtask.id, { completed: subtask.completed ? 0 : 1 })
+  const updated = await store.updateSubtask(subtask.id, { completed: !subtask.completed })
   const idx = editSubtasks.value.findIndex(s => s.id === subtask.id)
   if (idx >= 0) editSubtasks.value[idx] = updated
 }

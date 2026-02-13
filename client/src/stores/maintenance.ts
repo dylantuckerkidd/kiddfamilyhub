@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { apiFetch } from '@/composables/useApi'
+import { supabase } from '@/lib/supabase'
 
 export interface MaintenanceCategory {
   id: number
@@ -21,7 +21,7 @@ export interface MaintenanceItem {
   next_due_date: string | null
   sort_order: number
   created_at: string
-  // Joined fields
+  // Joined fields from view
   category_name: string | null
   category_icon: string | null
   person_name: string | null
@@ -97,8 +97,12 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
   async function fetchItems(showLoading = true) {
     if (showLoading && !initialized.value) loading.value = true
     try {
-      const res = await apiFetch('/api/maintenance')
-      items.value = await res.json()
+      const { data, error } = await supabase
+        .from('maintenance_items_full')
+        .select('*')
+        .order('sort_order', { ascending: true })
+      if (error) throw error
+      items.value = data ?? []
       initialized.value = true
     } finally {
       loading.value = false
@@ -106,8 +110,36 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
   }
 
   async function fetchCategories() {
-    const res = await apiFetch('/api/maintenance/categories')
-    categories.value = await res.json()
+    const { data, error } = await supabase
+      .from('maintenance_categories')
+      .select('*')
+      .order('sort_order', { ascending: true })
+    if (error) throw error
+    categories.value = data ?? []
+
+    // Seed default categories if none exist
+    if (categories.value.length === 0) {
+      await seedDefaultCategories()
+    }
+  }
+
+  async function seedDefaultCategories() {
+    const defaults = [
+      { name: 'HVAC', icon: '🌡️', sort_order: 1 },
+      { name: 'Plumbing', icon: '🚿', sort_order: 2 },
+      { name: 'Electrical', icon: '⚡', sort_order: 3 },
+      { name: 'Exterior', icon: '🏠', sort_order: 4 },
+      { name: 'Appliances', icon: '🔌', sort_order: 5 },
+      { name: 'Safety', icon: '🔒', sort_order: 6 },
+      { name: 'Lawn & Garden', icon: '🌿', sort_order: 7 },
+      { name: 'Cleaning', icon: '🧹', sort_order: 8 },
+    ]
+    const { data, error } = await supabase
+      .from('maintenance_categories')
+      .insert(defaults)
+      .select('*')
+    if (error) throw error
+    categories.value = data ?? []
   }
 
   async function addItem(data: {
@@ -119,25 +151,37 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
     frequency_days?: number | null
     next_due_date?: string | null
   }) {
-    await apiFetch('/api/maintenance', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
+    const { error } = await supabase
+      .from('maintenance_items')
+      .insert({
+        title: data.title,
+        description: data.description || null,
+        category_id: data.category_id ?? null,
+        person_id: data.person_id ?? null,
+        frequency: data.frequency || 'monthly',
+        frequency_days: data.frequency_days ?? null,
+        next_due_date: data.next_due_date ?? null,
+      })
+    if (error) throw error
     await fetchItems(false)
   }
 
   async function updateItem(id: number, data: Partial<MaintenanceItem>) {
-    await apiFetch(`/api/maintenance/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
+    const { category_name, category_icon, person_name, person_color, last_completed, ...updateData } = data as any
+    const { error } = await supabase
+      .from('maintenance_items')
+      .update(updateData)
+      .eq('id', id)
+    if (error) throw error
     await fetchItems(false)
   }
 
   async function deleteItem(id: number) {
-    await apiFetch(`/api/maintenance/${id}`, { method: 'DELETE' })
+    const { error } = await supabase
+      .from('maintenance_items')
+      .delete()
+      .eq('id', id)
+    if (error) throw error
     await fetchItems(false)
   }
 
@@ -145,39 +189,53 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
     id: number,
     data: { notes?: string; cost?: number | null; person_id?: number | null; completed_date?: string }
   ) {
-    await apiFetch(`/api/maintenance/${id}/complete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+    const { error } = await supabase.rpc('complete_maintenance_item', {
+      p_item_id: id,
+      p_completed_date: data.completed_date || null,
+      p_notes: data.notes || null,
+      p_cost: data.cost ?? null,
+      p_person_id: data.person_id ?? null,
     })
+    if (error) throw error
     await fetchItems(false)
   }
 
   async function fetchHistory(id: number): Promise<MaintenanceHistoryEntry[]> {
-    const res = await apiFetch(`/api/maintenance/${id}/history`)
-    return await res.json()
+    const { data, error } = await supabase
+      .from('maintenance_history_with_person')
+      .select('*')
+      .eq('item_id', id)
+      .order('completed_date', { ascending: false })
+    if (error) throw error
+    return data ?? []
   }
 
   async function addCategory(data: { name: string; icon?: string }) {
-    await apiFetch('/api/maintenance/categories', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
+    const { error } = await supabase
+      .from('maintenance_categories')
+      .insert({
+        name: data.name,
+        icon: data.icon || null,
+      })
+    if (error) throw error
     await fetchCategories()
   }
 
   async function updateCategory(id: number, data: Partial<MaintenanceCategory>) {
-    await apiFetch(`/api/maintenance/categories/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
+    const { error } = await supabase
+      .from('maintenance_categories')
+      .update(data)
+      .eq('id', id)
+    if (error) throw error
     await fetchCategories()
   }
 
   async function deleteCategory(id: number) {
-    await apiFetch(`/api/maintenance/categories/${id}`, { method: 'DELETE' })
+    const { error } = await supabase
+      .from('maintenance_categories')
+      .delete()
+      .eq('id', id)
+    if (error) throw error
     await fetchCategories()
   }
 

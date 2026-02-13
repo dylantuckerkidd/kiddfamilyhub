@@ -2,11 +2,9 @@
 import { ref, computed } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import SideNav from './components/SideNav.vue'
-import NavBar from './components/NavBar.vue'
 
 const route = useRoute()
 
-const isBudgetRoute = computed(() => route.path.startsWith('/budget'))
 const isLoginRoute = computed(() => route.path === '/login')
 const mobileNavOpen = ref(false)
 </script>
@@ -30,10 +28,8 @@ const mobileNavOpen = ref(false)
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <span class="font-bold text-gray-900 dark:text-white">Kidd Family Hub</span>
+        <span class="font-bold text-gray-900 dark:text-white">Family Hub</span>
       </div>
-
-      <NavBar v-if="isBudgetRoute" />
 
       <main class="flex-1 overflow-auto">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">

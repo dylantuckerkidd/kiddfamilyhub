@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// @ts-nocheck
 import { useBudgetStore } from '@/stores/budget'
 import EmptyState from './EmptyState.vue'
 

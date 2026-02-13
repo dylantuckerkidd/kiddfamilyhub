@@ -1,74 +1,69 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { supabase } from '@/lib/supabase'
+import type { Session, User } from '@supabase/supabase-js'
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(localStorage.getItem('auth_token'))
+  const session = ref<Session | null>(null)
+  const user = ref<User | null>(null)
+  const loading = ref(true)
 
-  const isAuthenticated = computed(() => !!token.value)
+  const isAuthenticated = computed(() => !!session.value)
 
-  function setToken(t: string | null) {
-    token.value = t
-    if (t) {
-      localStorage.setItem('auth_token', t)
-    } else {
-      localStorage.removeItem('auth_token')
-    }
+  async function initialize() {
+    const { data } = await supabase.auth.getSession()
+    session.value = data.session
+    user.value = data.session?.user ?? null
+    loading.value = false
+
+    supabase.auth.onAuthStateChange((_event, newSession) => {
+      session.value = newSession
+      user.value = newSession?.user ?? null
+    })
   }
 
-  async function login(pin: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin })
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        return { success: false, error: data.error || 'Invalid PIN' }
-      }
-      const data = await res.json()
-      setToken(data.token)
-      return { success: true }
-    } catch {
-      return { success: false, error: 'Network error' }
-    }
+  async function login(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) return { success: false, error: error.message }
+    return { success: true }
   }
 
-  async function verify(): Promise<boolean> {
-    if (!token.value) return false
-    try {
-      const res = await fetch('/api/auth/verify', {
-        headers: { Authorization: `Bearer ${token.value}` }
-      })
-      if (!res.ok) {
-        setToken(null)
-        return false
-      }
-      return true
-    } catch {
-      return false
-    }
+  async function signUp(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+    const { error } = await supabase.auth.signUp({ email, password })
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  }
+
+  async function signInWithGoogle() {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    })
+  }
+
+  async function signInWithApple() {
+    await supabase.auth.signInWithOAuth({
+      provider: 'apple',
+      options: { redirectTo: window.location.origin }
+    })
   }
 
   async function logout() {
-    if (token.value) {
-      try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token.value}` }
-        })
-      } catch {
-        // ignore
-      }
-    }
-    setToken(null)
+    await supabase.auth.signOut()
+    session.value = null
+    user.value = null
   }
 
   return {
-    token,
+    session,
+    user,
+    loading,
     isAuthenticated,
+    initialize,
     login,
-    verify,
+    signUp,
+    signInWithGoogle,
+    signInWithApple,
     logout
   }
 })
