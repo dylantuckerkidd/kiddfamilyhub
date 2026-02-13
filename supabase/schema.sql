@@ -182,7 +182,10 @@ CREATE POLICY "users_own_via_parent" ON todo_subtasks
 -- ============================================
 
 -- Calendar events with person info
-CREATE VIEW calendar_events_with_person AS
+-- NOTE: security_invoker ensures RLS on underlying tables is enforced
+CREATE VIEW calendar_events_with_person
+WITH (security_invoker = true)
+AS
 SELECT
   e.*,
   m.name AS person_name,
@@ -191,7 +194,9 @@ FROM calendar_events e
 LEFT JOIN family_members m ON e.person_id = m.id;
 
 -- Todos with person, category, and subtask counts
-CREATE VIEW todo_items_full AS
+CREATE VIEW todo_items_full
+WITH (security_invoker = true)
+AS
 SELECT
   t.*,
   m.name AS person_name,
@@ -450,7 +455,9 @@ CREATE POLICY "users_own_via_parent" ON maintenance_history
   WITH CHECK (EXISTS (SELECT 1 FROM maintenance_items WHERE id = maintenance_history.item_id AND user_id = auth.uid()));
 
 -- View: maintenance items with category, person, and last completed date
-CREATE VIEW maintenance_items_full AS
+CREATE VIEW maintenance_items_full
+WITH (security_invoker = true)
+AS
 SELECT
   i.*,
   c.name AS category_name,
@@ -463,7 +470,9 @@ LEFT JOIN maintenance_categories c ON i.category_id = c.id
 LEFT JOIN family_members m ON i.person_id = m.id;
 
 -- View: maintenance history with person info
-CREATE VIEW maintenance_history_with_person AS
+CREATE VIEW maintenance_history_with_person
+WITH (security_invoker = true)
+AS
 SELECT
   h.*,
   m.name AS person_name,
@@ -527,3 +536,172 @@ $$;
 
 -- NOTE: Default maintenance categories should be seeded per-user
 -- via the client when they first access the maintenance feature.
+
+-- ============================================
+-- 6.5 SEED HOLIDAYS PER USER
+-- ============================================
+
+-- Helper: nth weekday of a month (1-indexed). weekday: 0=Sun..6=Sat
+CREATE OR REPLACE FUNCTION nth_weekday(p_year INT, p_month INT, p_weekday INT, p_n INT)
+RETURNS INT
+LANGUAGE plpgsql IMMUTABLE
+AS $$
+DECLARE
+  first_dow INT;
+  day_val INT;
+BEGIN
+  first_dow := EXTRACT(DOW FROM make_date(p_year, p_month, 1))::INT;
+  day_val := 1 + ((p_weekday - first_dow + 7) % 7) + (p_n - 1) * 7;
+  RETURN day_val;
+END;
+$$;
+
+-- Helper: last weekday of a month
+CREATE OR REPLACE FUNCTION last_weekday(p_year INT, p_month INT, p_weekday INT)
+RETURNS INT
+LANGUAGE plpgsql IMMUTABLE
+AS $$
+DECLARE
+  last_day INT;
+  last_dow INT;
+BEGIN
+  last_day := EXTRACT(DAY FROM (make_date(p_year, p_month + 1, 1) - INTERVAL '1 day'))::INT;
+  last_dow := EXTRACT(DOW FROM make_date(p_year, p_month, last_day))::INT;
+  RETURN last_day - ((last_dow - p_weekday + 7) % 7);
+END;
+$$;
+
+-- Helper: Easter Sunday via anonymous Gregorian computus
+CREATE OR REPLACE FUNCTION easter_sunday(p_year INT)
+RETURNS DATE
+LANGUAGE plpgsql IMMUTABLE
+AS $$
+DECLARE
+  a INT; b INT; c INT; d INT; e INT; f INT; g INT;
+  h INT; i INT; k INT; l INT; m INT;
+  month_val INT; day_val INT;
+BEGIN
+  a := p_year % 19;
+  b := p_year / 100;
+  c := p_year % 100;
+  d := b / 4;
+  e := b % 4;
+  f := (b + 8) / 25;
+  g := (b - f + 1) / 3;
+  h := (19 * a + b - d - g + 15) % 30;
+  i := c / 4;
+  k := c % 4;
+  l := (32 + 2 * e + 2 * i - h - k) % 7;
+  m := (a + 11 * h + 22 * l) / 451;
+  month_val := (h + l - 7 * m + 114) / 31;
+  day_val := ((h + l - 7 * m + 114) % 31) + 1;
+  RETURN make_date(p_year, month_val, day_val);
+END;
+$$;
+
+-- Seed US holidays for the current user (5 years)
+CREATE OR REPLACE FUNCTION seed_holidays()
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  yr INT;
+  cur_year INT;
+  easter DATE;
+BEGIN
+  -- Skip if user already has holidays
+  IF EXISTS (SELECT 1 FROM calendar_events WHERE user_id = auth.uid() AND event_type = 'holiday' LIMIT 1) THEN
+    RETURN;
+  END IF;
+
+  cur_year := EXTRACT(YEAR FROM CURRENT_DATE)::INT;
+
+  FOR yr IN cur_year..(cur_year + 4) LOOP
+    easter := easter_sunday(yr);
+
+    INSERT INTO calendar_events (user_id, title, date, all_day, event_type) VALUES
+      (auth.uid(), 'New Year''s Day',   yr || '-01-01', TRUE, 'holiday'),
+      (auth.uid(), 'MLK Day',           yr || '-01-' || LPAD(nth_weekday(yr, 1, 1, 3)::TEXT, 2, '0'), TRUE, 'holiday'),
+      (auth.uid(), 'Valentine''s Day',  yr || '-02-14', TRUE, 'holiday'),
+      (auth.uid(), 'Presidents'' Day',  yr || '-02-' || LPAD(nth_weekday(yr, 2, 1, 3)::TEXT, 2, '0'), TRUE, 'holiday'),
+      (auth.uid(), 'Easter Sunday',     easter::TEXT, TRUE, 'holiday'),
+      (auth.uid(), 'Mother''s Day',     yr || '-05-' || LPAD(nth_weekday(yr, 5, 0, 2)::TEXT, 2, '0'), TRUE, 'holiday'),
+      (auth.uid(), 'Memorial Day',      yr || '-05-' || LPAD(last_weekday(yr, 5, 1)::TEXT, 2, '0'), TRUE, 'holiday'),
+      (auth.uid(), 'Juneteenth',        yr || '-06-19', TRUE, 'holiday'),
+      (auth.uid(), 'Father''s Day',     yr || '-06-' || LPAD(nth_weekday(yr, 6, 0, 3)::TEXT, 2, '0'), TRUE, 'holiday'),
+      (auth.uid(), 'Independence Day',  yr || '-07-04', TRUE, 'holiday'),
+      (auth.uid(), 'Labor Day',         yr || '-09-' || LPAD(nth_weekday(yr, 9, 1, 1)::TEXT, 2, '0'), TRUE, 'holiday'),
+      (auth.uid(), 'Halloween',         yr || '-10-31', TRUE, 'holiday'),
+      (auth.uid(), 'Veterans Day',      yr || '-11-11', TRUE, 'holiday'),
+      (auth.uid(), 'Thanksgiving',      yr || '-11-' || LPAD(nth_weekday(yr, 11, 4, 4)::TEXT, 2, '0'), TRUE, 'holiday'),
+      (auth.uid(), 'Christmas Eve',     yr || '-12-24', TRUE, 'holiday'),
+      (auth.uid(), 'Christmas Day',     yr || '-12-25', TRUE, 'holiday'),
+      (auth.uid(), 'New Year''s Eve',   yr || '-12-31', TRUE, 'holiday');
+  END LOOP;
+END;
+$$;
+
+-- ============================================
+-- 7. ICLOUD CALENDAR SYNC
+-- ============================================
+
+-- iCloud Sync Accounts (credentials stored securely)
+CREATE TABLE icloud_sync_accounts (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  email TEXT NOT NULL,
+  app_password TEXT NOT NULL,
+  calendar_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TRIGGER set_user_id_icloud_sync_accounts BEFORE INSERT ON icloud_sync_accounts FOR EACH ROW EXECUTE FUNCTION set_user_id();
+
+ALTER TABLE icloud_sync_accounts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users_own_data" ON icloud_sync_accounts
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Safe view: excludes app_password so the client never sees it
+CREATE VIEW icloud_sync_accounts_safe
+WITH (security_invoker = true)
+AS
+SELECT id, user_id, label, email, calendar_url, created_at
+FROM icloud_sync_accounts;
+
+-- Junction table: which events are synced to which iCloud accounts
+CREATE TABLE event_icloud_sync (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  event_id BIGINT NOT NULL REFERENCES calendar_events(id) ON DELETE CASCADE,
+  account_id BIGINT NOT NULL REFERENCES icloud_sync_accounts(id) ON DELETE CASCADE,
+  ical_uid TEXT NOT NULL,
+  UNIQUE(event_id, account_id)
+);
+
+ALTER TABLE event_icloud_sync ENABLE ROW LEVEL SECURITY;
+
+-- RLS via parent event ownership
+CREATE POLICY "users_own_via_event" ON event_icloud_sync
+  FOR ALL
+  USING (EXISTS (SELECT 1 FROM calendar_events WHERE id = event_icloud_sync.event_id AND user_id = auth.uid()))
+  WITH CHECK (EXISTS (SELECT 1 FROM calendar_events WHERE id = event_icloud_sync.event_id AND user_id = auth.uid()));
+
+-- Update calendar events view to include sync account IDs
+DROP VIEW IF EXISTS calendar_events_with_person;
+CREATE VIEW calendar_events_with_person
+WITH (security_invoker = true)
+AS
+SELECT
+  e.*,
+  m.name AS person_name,
+  m.color AS person_color,
+  COALESCE(
+    (SELECT array_agg(s.account_id) FROM event_icloud_sync s WHERE s.event_id = e.id),
+    ARRAY[]::BIGINT[]
+  ) AS sync_account_ids
+FROM calendar_events e
+LEFT JOIN family_members m ON e.person_id = m.id;

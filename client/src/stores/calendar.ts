@@ -22,13 +22,25 @@ export interface CalendarEvent {
   person_color: string | null
   recurring_group_id: string | null
   event_type: string | null
+  sync_account_ids: number[]
+}
+
+export interface ICloudAccount {
+  id: number
+  label: string
+  email: string
+  calendar_url: string | null
+  created_at: string
 }
 
 export const useCalendarStore = defineStore('calendar', () => {
   const events = ref<CalendarEvent[]>([])
   const familyMembers = ref<FamilyMember[]>([])
+  const icloudAccounts = ref<ICloudAccount[]>([])
   const loading = ref(false)
   const initialized = ref(false)
+
+  // ---- Family Members ----
 
   async function fetchFamilyMembers() {
     const { data, error } = await supabase
@@ -72,6 +84,65 @@ export const useCalendarStore = defineStore('calendar', () => {
     familyMembers.value = familyMembers.value.filter(m => m.id !== id)
   }
 
+  // ---- iCloud Accounts ----
+
+  async function fetchICloudAccounts() {
+    const { data, error } = await supabase
+      .from('icloud_sync_accounts_safe')
+      .select('*')
+      .order('created_at', { ascending: true })
+    if (error) throw error
+    icloudAccounts.value = data ?? []
+  }
+
+  async function addICloudAccount(account: { label: string; email: string; app_password: string }) {
+    const { error } = await supabase
+      .from('icloud_sync_accounts')
+      .insert(account)
+    if (error) throw error
+    await fetchICloudAccounts()
+  }
+
+  async function updateICloudAccount(id: number, updates: { label?: string; email?: string; app_password?: string }) {
+    const { error } = await supabase
+      .from('icloud_sync_accounts')
+      .update(updates)
+      .eq('id', id)
+    if (error) throw error
+    await fetchICloudAccounts()
+  }
+
+  async function deleteICloudAccount(id: number) {
+    const { error } = await supabase
+      .from('icloud_sync_accounts')
+      .delete()
+      .eq('id', id)
+    if (error) throw error
+    icloudAccounts.value = icloudAccounts.value.filter(a => a.id !== id)
+  }
+
+  async function testICloudAccount(id: number): Promise<{ connected: boolean; calendarName?: string; error?: string }> {
+    const { data, error } = await supabase.functions.invoke('icloud-sync', {
+      body: { action: 'test', account_id: id }
+    })
+    if (error) return { connected: false, error: error.message }
+    return data
+  }
+
+  // ---- Fire-and-forget sync helpers ----
+
+  function fireAndForgetSync(action: string, payload: Record<string, unknown>) {
+    supabase.functions.invoke('icloud-sync', {
+      body: { action, ...payload }
+    }).catch(err => console.error(`[iCloud Sync] ${action} failed:`, err))
+  }
+
+  // ---- Calendar Events ----
+
+  async function seedHolidays() {
+    await supabase.rpc('seed_holidays')
+  }
+
   async function fetchEvents(month?: number, year?: number) {
     loading.value = true
     try {
@@ -80,7 +151,6 @@ export const useCalendarStore = defineStore('calendar', () => {
         .select('*')
 
       if (month !== undefined && year !== undefined) {
-        // Fetch events that overlap with the given month
         const startDate = `${year}-${String(month).padStart(2, '0')}-01`
         const endDay = new Date(year, month, 0).getDate()
         const endDate = `${year}-${String(month).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`
@@ -92,7 +162,10 @@ export const useCalendarStore = defineStore('calendar', () => {
 
       const { data, error } = await query.order('date', { ascending: true })
       if (error) throw error
-      events.value = data ?? []
+      events.value = (data ?? []).map(e => ({
+        ...e,
+        sync_account_ids: e.sync_account_ids ?? []
+      }))
       initialized.value = true
     } finally {
       loading.value = false
@@ -109,7 +182,10 @@ export const useCalendarStore = defineStore('calendar', () => {
     all_day?: boolean
     person_id?: number | null
     event_type?: string | null
+    sync_account_ids?: number[]
   }) {
+    const syncAccountIds = event.sync_account_ids ?? []
+
     const { data, error } = await supabase
       .from('calendar_events')
       .insert({
@@ -127,7 +203,11 @@ export const useCalendarStore = defineStore('calendar', () => {
       .single()
     if (error) throw error
 
-    // Refetch to get joined person data from view
+    // Fire-and-forget sync to iCloud
+    if (syncAccountIds.length > 0) {
+      fireAndForgetSync('sync-create', { event_id: data.id, account_ids: syncAccountIds })
+    }
+
     await fetchEvents()
     return data
   }
@@ -137,7 +217,9 @@ export const useCalendarStore = defineStore('calendar', () => {
     date: string
     person_id?: number | null
     years?: number
+    sync_account_ids?: number[]
   }) {
+    const syncAccountIds = data.sync_account_ids ?? []
     const groupId = crypto.randomUUID()
     const baseDate = new Date(data.date + 'T00:00:00')
     const years = data.years || 5
@@ -167,35 +249,61 @@ export const useCalendarStore = defineStore('calendar', () => {
 
     if (eventRows.length === 0) return null
 
-    const { error } = await supabase
+    const { data: inserted, error } = await supabase
       .from('calendar_events')
       .insert(eventRows)
+      .select('id')
     if (error) throw error
+
+    // Sync each created event
+    if (syncAccountIds.length > 0 && inserted) {
+      for (const row of inserted) {
+        fireAndForgetSync('sync-create', { event_id: row.id, account_ids: syncAccountIds })
+      }
+    }
 
     await fetchEvents()
     return events.value.filter(e => e.recurring_group_id === groupId)
   }
 
-  async function updateEvent(id: number, data: Partial<CalendarEvent>) {
-    // Strip view-only fields
-    const { person_name, person_color, ...updateData } = data as any
+  async function updateEvent(id: number, data: Partial<CalendarEvent> & { sync_account_ids?: number[] }) {
+    const syncAccountIds = data.sync_account_ids
+    const { person_name, person_color, sync_account_ids: _, ...updateData } = data as any
     const { error } = await supabase
       .from('calendar_events')
       .update(updateData)
       .eq('id', id)
     if (error) throw error
 
-    // Refetch to get joined data
+    // If sync_account_ids provided, handle diff
+    if (syncAccountIds !== undefined) {
+      fireAndForgetSync('sync-diff', { event_id: id, new_account_ids: syncAccountIds })
+    } else {
+      // Just update existing syncs
+      fireAndForgetSync('sync-update', { event_id: id })
+    }
+
     await fetchEvents()
   }
 
   async function deleteEvent(id: number) {
+    // Read sync rows before deleting (needed for iCloud cleanup)
+    const { data: syncRows } = await supabase
+      .from('event_icloud_sync')
+      .select('account_id, ical_uid')
+      .eq('event_id', id)
+
     const { error } = await supabase
       .from('calendar_events')
       .delete()
       .eq('id', id)
     if (error) throw error
     events.value = events.value.filter(e => e.id !== id)
+
+    // Fire-and-forget delete from iCloud
+    if (syncRows && syncRows.length > 0) {
+      fireAndForgetSync('sync-delete', { sync_rows: syncRows })
+    }
   }
 
   async function addRecurringEvent(data: {
@@ -208,8 +316,9 @@ export const useCalendarStore = defineStore('calendar', () => {
     days: number[]
     start_date: string
     months: number
+    sync_account_ids?: number[]
   }) {
-    // Generate recurring events client-side
+    const syncAccountIds = data.sync_account_ids ?? []
     const groupId = crypto.randomUUID()
     const startDate = new Date(data.start_date + 'T00:00:00')
     const endDate = new Date(startDate)
@@ -246,47 +355,87 @@ export const useCalendarStore = defineStore('calendar', () => {
 
     if (eventRows.length === 0) return null
 
-    const { error } = await supabase
+    const { data: inserted, error } = await supabase
       .from('calendar_events')
       .insert(eventRows)
+      .select('id')
     if (error) throw error
 
-    // Refetch to get view data
+    // Sync each created event
+    if (syncAccountIds.length > 0 && inserted) {
+      for (const row of inserted) {
+        fireAndForgetSync('sync-create', { event_id: row.id, account_ids: syncAccountIds })
+      }
+    }
+
     await fetchEvents()
     return events.value.filter(e => e.recurring_group_id === groupId)
   }
 
   async function deleteEventSeries(groupId: string) {
+    // Get all sync rows for events in this series
+    const seriesEvents = events.value.filter(e => e.recurring_group_id === groupId)
+    const allSyncRows: { account_id: number; ical_uid: string }[] = []
+
+    for (const ev of seriesEvents) {
+      const { data: syncRows } = await supabase
+        .from('event_icloud_sync')
+        .select('account_id, ical_uid')
+        .eq('event_id', ev.id)
+      if (syncRows) allSyncRows.push(...syncRows)
+    }
+
     const { error } = await supabase
       .from('calendar_events')
       .delete()
       .eq('recurring_group_id', groupId)
     if (error) throw error
     events.value = events.value.filter(e => e.recurring_group_id !== groupId)
+
+    // Fire-and-forget delete from iCloud
+    if (allSyncRows.length > 0) {
+      fireAndForgetSync('sync-delete', { sync_rows: allSyncRows })
+    }
   }
 
-  async function updateEventSeries(groupId: string, data: Partial<CalendarEvent>) {
-    // Strip view-only fields
-    const { person_name, person_color, ...updateData } = data as any
+  async function updateEventSeries(groupId: string, data: Partial<CalendarEvent> & { sync_account_ids?: number[] }) {
+    const syncAccountIds = data.sync_account_ids
+    const { person_name, person_color, sync_account_ids: _, ...updateData } = data as any
     const { error } = await supabase
       .from('calendar_events')
       .update(updateData)
       .eq('recurring_group_id', groupId)
     if (error) throw error
 
-    // Refetch to get joined data
+    // Fire-and-forget: update all synced events in the series
+    const seriesEvents = events.value.filter(e => e.recurring_group_id === groupId)
+    for (const ev of seriesEvents) {
+      if (syncAccountIds !== undefined) {
+        fireAndForgetSync('sync-diff', { event_id: ev.id, new_account_ids: syncAccountIds })
+      } else {
+        fireAndForgetSync('sync-update', { event_id: ev.id })
+      }
+    }
+
     await fetchEvents()
   }
 
   return {
     events,
     familyMembers,
+    icloudAccounts,
     loading,
     initialized,
     fetchFamilyMembers,
     addFamilyMember,
     updateFamilyMember,
     deleteFamilyMember,
+    fetchICloudAccounts,
+    addICloudAccount,
+    updateICloudAccount,
+    deleteICloudAccount,
+    testICloudAccount,
+    seedHolidays,
     fetchEvents,
     addEvent,
     updateEvent,

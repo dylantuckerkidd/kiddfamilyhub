@@ -19,6 +19,11 @@ const router = createRouter({
       component: () => import('@/views/CalendarView.vue')
     },
     {
+      path: '/weather',
+      name: 'weather',
+      component: () => import('@/views/WeatherView.vue')
+    },
+    {
       path: '/grocery',
       name: 'grocery',
       component: () => import('@/views/GroceryListView.vue')
@@ -32,6 +37,11 @@ const router = createRouter({
       path: '/maintenance',
       name: 'maintenance',
       component: () => import('@/views/MaintenanceLogView.vue')
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@/views/SettingsView.vue')
     }
   ]
 })

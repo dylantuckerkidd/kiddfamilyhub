@@ -2,9 +2,12 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useCalendarStore, type CalendarEvent } from '@/stores/calendar'
 import { useTodosStore, type TodoItem } from '@/stores/todos'
+import { useWeatherStore } from '@/stores/weather'
+import WeatherWidget from '@/components/WeatherWidget.vue'
 
 const store = useCalendarStore()
 const todosStore = useTodosStore()
+const weatherStore = useWeatherStore()
 
 const currentDate = ref(new Date())
 const viewMode = ref<'month' | 'week' | 'agenda'>('month')
@@ -29,7 +32,8 @@ const eventForm = ref({
   recurring_days: [] as number[],
   recurring_months: 1,
   is_birthday: false,
-  birthday_years: 5
+  birthday_years: 5,
+  sync_account_ids: [] as number[]
 })
 
 const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -40,6 +44,15 @@ function toggleRecurringDay(day: number) {
     eventForm.value.recurring_days.splice(idx, 1)
   } else {
     eventForm.value.recurring_days.push(day)
+  }
+}
+
+function toggleSyncAccount(accountId: number) {
+  const idx = eventForm.value.sync_account_ids.indexOf(accountId)
+  if (idx >= 0) {
+    eventForm.value.sync_account_ids.splice(idx, 1)
+  } else {
+    eventForm.value.sync_account_ids.push(accountId)
   }
 }
 
@@ -349,7 +362,8 @@ function openAddEvent(dateStr: string) {
     recurring_days: [],
     recurring_months: 1,
     is_birthday: false,
-    birthday_years: 5
+    birthday_years: 5,
+    sync_account_ids: store.icloudAccounts.map(a => a.id)
   }
   selectedDate.value = dateStr
   showEventModal.value = true
@@ -372,7 +386,8 @@ function openEditEvent(event: CalendarEvent) {
     recurring_days: [],
     recurring_months: 1,
     is_birthday: event.event_type === 'birthday',
-    birthday_years: 5
+    birthday_years: 5,
+    sync_account_ids: [...(event.sync_account_ids || [])]
   }
   showEventModal.value = true
 }
@@ -383,6 +398,8 @@ async function saveEvent() {
   const endDate = eventForm.value.multi_day && eventForm.value.end_date ? eventForm.value.end_date : null
   const endTime = !eventForm.value.all_day && eventForm.value.end_time ? eventForm.value.end_time : null
 
+  const syncIds = eventForm.value.sync_account_ids
+
   if (editingEvent.value) {
     await store.updateEvent(editingEvent.value.id, {
       title: eventForm.value.title,
@@ -392,14 +409,16 @@ async function saveEvent() {
       time: eventForm.value.all_day ? null : eventForm.value.time || null,
       end_time: endTime,
       all_day: eventForm.value.all_day,
-      person_id: eventForm.value.person_id
+      person_id: eventForm.value.person_id,
+      sync_account_ids: syncIds
     })
   } else if (eventForm.value.is_birthday) {
     await store.addBirthdayEvent({
       title: eventForm.value.title,
       date: eventForm.value.date,
       person_id: eventForm.value.person_id,
-      years: eventForm.value.birthday_years
+      years: eventForm.value.birthday_years,
+      sync_account_ids: syncIds
     })
   } else if (eventForm.value.recurring && eventForm.value.recurring_days.length > 0) {
     await store.addRecurringEvent({
@@ -411,7 +430,8 @@ async function saveEvent() {
       person_id: eventForm.value.person_id,
       days: eventForm.value.recurring_days,
       start_date: eventForm.value.date,
-      months: eventForm.value.recurring_months
+      months: eventForm.value.recurring_months,
+      sync_account_ids: syncIds
     })
   } else {
     await store.addEvent({
@@ -422,7 +442,8 @@ async function saveEvent() {
       time: eventForm.value.all_day ? undefined : eventForm.value.time || undefined,
       end_time: endTime || undefined,
       all_day: eventForm.value.all_day,
-      person_id: eventForm.value.person_id
+      person_id: eventForm.value.person_id,
+      sync_account_ids: syncIds
     })
   }
 
@@ -442,7 +463,8 @@ async function saveEventSeries() {
     time: eventForm.value.all_day ? null : eventForm.value.time || null,
     end_time: endTime,
     all_day: eventForm.value.all_day,
-    person_id: eventForm.value.person_id
+    person_id: eventForm.value.person_id,
+    sync_account_ids: eventForm.value.sync_account_ids
   } as any)
 
   await fetchEventsForView()
@@ -478,10 +500,19 @@ async function deletePerson(id: number) {
 }
 
 // Fetch data on mount and when view changes
-onMounted(() => {
+onMounted(async () => {
   store.fetchFamilyMembers()
+  store.fetchICloudAccounts()
+  await store.seedHolidays()
   fetchEventsForView()
   todosStore.fetchTodos()
+
+  // Init weather
+  if (!weatherStore.hasLocation) {
+    weatherStore.detectLocation()
+  } else if (!weatherStore.current) {
+    weatherStore.fetchWeather()
+  }
 })
 
 watch([currentDate, viewMode], () => {
@@ -505,6 +536,9 @@ watch([currentDate, viewMode], () => {
         Manage People
       </button>
     </div>
+
+    <!-- Weather Widget -->
+    <WeatherWidget />
 
     <!-- Calendar -->
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
@@ -651,7 +685,7 @@ watch([currentDate, viewMode], () => {
               >
                 <template v-if="isStart">
                   <span v-if="event.time" class="opacity-75 hidden sm:inline">{{ formatTime(event.time) }}<template v-if="event.end_time && (!event.end_date || event.end_date === event.date)">-{{ formatTime(event.end_time) }}</template></span>
-                  <span v-if="event.event_type === 'holiday'">&#x2B50; </span><span v-else-if="event.event_type === 'birthday'">&#x1F382; </span>{{ event.title }}
+                  <span v-if="event.event_type === 'holiday'">&#x2B50; </span><span v-else-if="event.event_type === 'birthday'">&#x1F382; </span><svg v-if="event.sync_account_ids?.length" class="w-2.5 h-2.5 inline-block opacity-50 sm:mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>{{ event.title }}
                 </template>
                 <template v-else-if="isEnd && event.end_time">
                   <span class="opacity-75 hidden sm:inline">ends {{ formatTime(event.end_time) }}</span>
@@ -722,7 +756,9 @@ watch([currentDate, viewMode], () => {
                 :style="getEventStyle(event)"
               >
                 <div class="font-medium text-sm flex items-center gap-1.5">
-                  <span v-if="event.event_type === 'holiday'">&#x2B50; </span><span v-else-if="event.event_type === 'birthday'">&#x1F382; </span>{{ event.title }}
+                  <span v-if="event.event_type === 'holiday'">&#x2B50; </span><span v-else-if="event.event_type === 'birthday'">&#x1F382; </span>
+                  <svg v-if="event.sync_account_ids?.length" class="w-3 h-3 flex-shrink-0 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
+                  {{ event.title }}
                 </div>
                 <div v-if="!event.all_day && event.time" class="text-xs mt-1 opacity-75">
                   {{ formatTime(event.time) }}
@@ -782,7 +818,9 @@ watch([currentDate, viewMode], () => {
                 :style="getEventStyle(event)"
               >
                 <div class="font-medium text-sm flex items-center gap-1.5">
-                  <span v-if="event.event_type === 'holiday'">&#x2B50; </span><span v-else-if="event.event_type === 'birthday'">&#x1F382; </span>{{ event.title }}
+                  <span v-if="event.event_type === 'holiday'">&#x2B50; </span><span v-else-if="event.event_type === 'birthday'">&#x1F382; </span>
+                  <svg v-if="event.sync_account_ids?.length" class="w-3 h-3 flex-shrink-0 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
+                  {{ event.title }}
                 </div>
                 <div v-if="!event.all_day && event.time" class="text-xs mt-1 opacity-75">
                   {{ formatTime(event.time) }}
@@ -864,6 +902,7 @@ watch([currentDate, viewMode], () => {
                 <div class="font-medium text-sm flex items-center gap-1.5">
                   <span v-if="event.event_type === 'holiday'">&#x2B50; </span>
                   <span v-else-if="event.event_type === 'birthday'">&#x1F382; </span>
+                  <svg v-if="event.sync_account_ids?.length" class="w-3 h-3 flex-shrink-0 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
                   {{ event.title }}
                 </div>
                 <div v-if="!event.all_day && event.time" class="text-xs mt-1 opacity-75">
@@ -1084,6 +1123,33 @@ watch([currentDate, viewMode], () => {
               class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white resize-none"
               placeholder="Optional description"
             ></textarea>
+          </div>
+
+          <!-- iCloud Sync -->
+          <div v-if="store.icloudAccounts.length > 0" class="space-y-2">
+            <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+              </svg>
+              Sync to iCloud
+            </label>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="account in store.icloudAccounts"
+                :key="account.id"
+                type="button"
+                @click="toggleSyncAccount(account.id)"
+                class="px-3 py-1.5 text-xs rounded-lg font-medium transition-colors flex items-center gap-1.5"
+                :class="eventForm.sync_account_ids.includes(account.id)
+                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 ring-1 ring-blue-300 dark:ring-blue-700'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                </svg>
+                {{ account.label }}
+              </button>
+            </div>
           </div>
 
           <div class="flex gap-2 pt-2 flex-wrap">
