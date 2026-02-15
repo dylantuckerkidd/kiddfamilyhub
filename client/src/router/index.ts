@@ -34,6 +34,11 @@ const router = createRouter({
       component: () => import('@/views/TodoListView.vue')
     },
     {
+      path: '/meals',
+      name: 'meals',
+      component: () => import('@/views/MealPlanView.vue')
+    },
+    {
       path: '/maintenance',
       name: 'maintenance',
       component: () => import('@/views/MaintenanceLogView.vue')

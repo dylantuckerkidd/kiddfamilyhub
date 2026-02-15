@@ -5,7 +5,7 @@
 -- 1. TABLES
 -- ============================================
 
--- Family Members
+-- Family Members (people within a household, e.g. kids, parents)
 CREATE TABLE family_members (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -100,6 +100,43 @@ CREATE TABLE todo_subtasks (
 CREATE INDEX idx_todo_subtasks_todo ON todo_subtasks(todo_id);
 
 -- ============================================
+-- 1.1 FAMILY SHARING TABLES
+-- ============================================
+
+-- Families (a group of Supabase auth users who share data)
+CREATE TABLE families (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Family Users (which auth users belong to which family)
+CREATE TABLE family_users (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  family_id UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('owner', 'member')) DEFAULT 'member',
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(family_id, user_id)
+);
+
+CREATE INDEX idx_family_users_user ON family_users(user_id);
+CREATE INDEX idx_family_users_family ON family_users(family_id);
+
+-- Family Invites (invite codes to join a family)
+CREATE TABLE family_invites (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  family_id UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  invite_code TEXT NOT NULL UNIQUE,
+  invited_by UUID NOT NULL REFERENCES auth.users(id),
+  expires_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days',
+  accepted_by UUID REFERENCES auth.users(id),
+  accepted_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_family_invites_code ON family_invites(invite_code);
+
+-- ============================================
 -- 1.5 AUTO-SET user_id ON INSERT
 -- ============================================
 
@@ -125,9 +162,30 @@ CREATE TRIGGER set_user_id_todo_categories BEFORE INSERT ON todo_categories FOR 
 CREATE TRIGGER set_user_id_todo_items BEFORE INSERT ON todo_items FOR EACH ROW EXECUTE FUNCTION set_user_id();
 
 -- ============================================
+-- 1.6 FAMILY SHARING HELPER FUNCTION
+-- ============================================
+
+-- Returns all user_ids in the caller's family, always including auth.uid()
+CREATE OR REPLACE FUNCTION get_family_user_ids()
+RETURNS SETOF UUID
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT fu2.user_id
+  FROM family_users fu1
+  JOIN family_users fu2 ON fu2.family_id = fu1.family_id
+  WHERE fu1.user_id = auth.uid()
+  UNION
+  SELECT auth.uid()
+$$;
+
+-- ============================================
 -- 2. ROW LEVEL SECURITY
 -- ============================================
 
+-- Enable RLS on all tables
 ALTER TABLE family_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE grocery_items ENABLE ROW LEVEL SECURITY;
@@ -135,47 +193,64 @@ ALTER TABLE grocery_item_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE todo_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE todo_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE todo_subtasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE families ENABLE ROW LEVEL SECURITY;
+ALTER TABLE family_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE family_invites ENABLE ROW LEVEL SECURITY;
 
--- Standard policy: users can only access their own data
-CREATE POLICY "users_own_data" ON family_members
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+-- Family sharing tables: RLS checks membership directly (not via helper to avoid circular dependency)
+CREATE POLICY "family_members_access" ON families
+  FOR ALL
+  USING (EXISTS (SELECT 1 FROM family_users WHERE family_id = families.id AND user_id = auth.uid()))
+  WITH CHECK (EXISTS (SELECT 1 FROM family_users WHERE family_id = families.id AND user_id = auth.uid()));
 
-CREATE POLICY "users_own_data" ON calendar_events
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "family_users_access" ON family_users
+  FOR SELECT
+  USING (EXISTS (SELECT 1 FROM family_users fu WHERE fu.family_id = family_users.family_id AND fu.user_id = auth.uid()));
 
-CREATE POLICY "users_own_data" ON grocery_items
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "family_invites_access" ON family_invites
+  FOR SELECT
+  USING (EXISTS (SELECT 1 FROM family_users WHERE family_id = family_invites.family_id AND user_id = auth.uid()));
 
--- Grocery history: users see their own + global seed data (user_id IS NULL)
-CREATE POLICY "users_own_and_global" ON grocery_item_history
-  FOR SELECT USING (auth.uid() = user_id OR user_id IS NULL);
+-- Family-aware policies: users see their own data + data from family members
+CREATE POLICY "family_access" ON family_members
+  FOR ALL USING (user_id IN (SELECT get_family_user_ids()))
+  WITH CHECK (user_id IN (SELECT get_family_user_ids()));
+
+CREATE POLICY "family_access" ON calendar_events
+  FOR ALL USING (user_id IN (SELECT get_family_user_ids()))
+  WITH CHECK (user_id IN (SELECT get_family_user_ids()));
+
+CREATE POLICY "family_access" ON grocery_items
+  FOR ALL USING (user_id IN (SELECT get_family_user_ids()))
+  WITH CHECK (user_id IN (SELECT get_family_user_ids()));
+
+-- Grocery history: users see their own + family + global seed data (user_id IS NULL)
+CREATE POLICY "family_and_global" ON grocery_item_history
+  FOR SELECT USING (user_id IN (SELECT get_family_user_ids()) OR user_id IS NULL);
 
 CREATE POLICY "users_insert_own" ON grocery_item_history
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "users_update_own" ON grocery_item_history
-  FOR UPDATE USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "family_update" ON grocery_item_history
+  FOR UPDATE USING (user_id IN (SELECT get_family_user_ids()))
+  WITH CHECK (user_id IN (SELECT get_family_user_ids()));
 
-CREATE POLICY "users_delete_own" ON grocery_item_history
-  FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "family_delete" ON grocery_item_history
+  FOR DELETE USING (user_id IN (SELECT get_family_user_ids()));
 
-CREATE POLICY "users_own_data" ON todo_categories
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "family_access" ON todo_categories
+  FOR ALL USING (user_id IN (SELECT get_family_user_ids()))
+  WITH CHECK (user_id IN (SELECT get_family_user_ids()));
 
-CREATE POLICY "users_own_data" ON todo_items
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "family_access" ON todo_items
+  FOR ALL USING (user_id IN (SELECT get_family_user_ids()))
+  WITH CHECK (user_id IN (SELECT get_family_user_ids()));
 
--- Subtasks: RLS via parent todo_item ownership
-CREATE POLICY "users_own_via_parent" ON todo_subtasks
+-- Subtasks: RLS via parent todo_item ownership (family-aware)
+CREATE POLICY "family_access_via_parent" ON todo_subtasks
   FOR ALL
-  USING (EXISTS (SELECT 1 FROM todo_items WHERE id = todo_subtasks.todo_id AND user_id = auth.uid()))
-  WITH CHECK (EXISTS (SELECT 1 FROM todo_items WHERE id = todo_subtasks.todo_id AND user_id = auth.uid()));
+  USING (EXISTS (SELECT 1 FROM todo_items WHERE id = todo_subtasks.todo_id AND user_id IN (SELECT get_family_user_ids())))
+  WITH CHECK (EXISTS (SELECT 1 FROM todo_items WHERE id = todo_subtasks.todo_id AND user_id IN (SELECT get_family_user_ids())));
 
 -- ============================================
 -- 3. VIEWS (preserve data shapes for frontend)
@@ -213,7 +288,7 @@ LEFT JOIN todo_categories c ON t.category_id = c.id;
 -- 4. RPC FUNCTIONS
 -- ============================================
 
--- Get grocery suggestions (ILIKE prefix search)
+-- Get grocery suggestions (ILIKE prefix search, family-aware)
 CREATE OR REPLACE FUNCTION get_grocery_suggestions(query TEXT)
 RETURNS TABLE(name TEXT, category TEXT)
 LANGUAGE sql
@@ -223,15 +298,17 @@ AS $$
   SELECT h.name, h.category
   FROM grocery_item_history h
   WHERE h.name ILIKE query || '%'
-    AND (h.user_id = auth.uid() OR h.user_id IS NULL)
+    AND (h.user_id IN (SELECT get_family_user_ids()) OR h.user_id IS NULL)
   ORDER BY
-    CASE WHEN h.user_id = auth.uid() THEN 0 ELSE 1 END,
+    CASE WHEN h.user_id = auth.uid() THEN 0
+         WHEN h.user_id IS NOT NULL THEN 1
+         ELSE 2 END,
     h.use_count DESC,
     h.name
   LIMIT 10;
 $$;
 
--- Add grocery item with auto-category from history + upsert history
+-- Add grocery item with auto-category from history + upsert history (family-aware lookup, auth.uid() for insert)
 CREATE OR REPLACE FUNCTION add_grocery_item(
   p_name TEXT,
   p_quantity REAL DEFAULT NULL,
@@ -247,7 +324,7 @@ DECLARE
   resolved_category TEXT;
   new_item grocery_items;
 BEGIN
-  -- Resolve category: use provided, or look up from history
+  -- Resolve category: use provided, or look up from history (family-aware)
   IF p_category IS NOT NULL AND p_category != '' THEN
     resolved_category := p_category;
   ELSE
@@ -255,19 +332,21 @@ BEGIN
     FROM grocery_item_history h
     WHERE h.name ILIKE p_name
       AND h.category IS NOT NULL
-      AND (h.user_id = auth.uid() OR h.user_id IS NULL)
+      AND (h.user_id IN (SELECT get_family_user_ids()) OR h.user_id IS NULL)
     ORDER BY
-      CASE WHEN h.user_id = auth.uid() THEN 0 ELSE 1 END,
+      CASE WHEN h.user_id = auth.uid() THEN 0
+           WHEN h.user_id IS NOT NULL THEN 1
+           ELSE 2 END,
       h.use_count DESC
     LIMIT 1;
   END IF;
 
-  -- Insert the grocery item
+  -- Insert the grocery item (always as current user)
   INSERT INTO grocery_items (user_id, name, quantity, unit, category, checked)
   VALUES (auth.uid(), p_name, p_quantity, p_unit, resolved_category, FALSE)
   RETURNING * INTO new_item;
 
-  -- Upsert history for this user
+  -- Upsert history for this user (always auth.uid())
   INSERT INTO grocery_item_history (user_id, name, category, use_count, last_used)
   VALUES (auth.uid(), p_name, resolved_category, 1, NOW())
   ON CONFLICT (user_id, name)
@@ -280,7 +359,7 @@ BEGIN
 END;
 $$;
 
--- Reorder todos by ID array
+-- Reorder todos by ID array (family-aware ownership check)
 CREATE OR REPLACE FUNCTION reorder_todos(ids BIGINT[])
 RETURNS VOID
 LANGUAGE plpgsql
@@ -293,12 +372,12 @@ BEGIN
   FOR i IN 1..array_length(ids, 1) LOOP
     UPDATE todo_items
     SET sort_order = i - 1
-    WHERE id = ids[i] AND user_id = auth.uid();
+    WHERE id = ids[i] AND user_id IN (SELECT get_family_user_ids());
   END LOOP;
 END;
 $$;
 
--- Reorder subtasks by ID array
+-- Reorder subtasks by ID array (family-aware ownership check)
 CREATE OR REPLACE FUNCTION reorder_subtasks(p_todo_id BIGINT, ids BIGINT[])
 RETURNS VOID
 LANGUAGE plpgsql
@@ -308,8 +387,8 @@ AS $$
 DECLARE
   i INTEGER;
 BEGIN
-  -- Verify ownership of parent todo
-  IF NOT EXISTS (SELECT 1 FROM todo_items WHERE id = p_todo_id AND user_id = auth.uid()) THEN
+  -- Verify ownership of parent todo (family-aware)
+  IF NOT EXISTS (SELECT 1 FROM todo_items WHERE id = p_todo_id AND user_id IN (SELECT get_family_user_ids())) THEN
     RAISE EXCEPTION 'Unauthorized';
   END IF;
 
@@ -408,9 +487,9 @@ CREATE TRIGGER set_user_id_maintenance_categories BEFORE INSERT ON maintenance_c
 
 ALTER TABLE maintenance_categories ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "users_own_data" ON maintenance_categories
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "family_access" ON maintenance_categories
+  FOR ALL USING (user_id IN (SELECT get_family_user_ids()))
+  WITH CHECK (user_id IN (SELECT get_family_user_ids()));
 
 -- Maintenance Items
 CREATE TABLE maintenance_items (
@@ -431,9 +510,9 @@ CREATE TRIGGER set_user_id_maintenance_items BEFORE INSERT ON maintenance_items 
 
 ALTER TABLE maintenance_items ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "users_own_data" ON maintenance_items
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "family_access" ON maintenance_items
+  FOR ALL USING (user_id IN (SELECT get_family_user_ids()))
+  WITH CHECK (user_id IN (SELECT get_family_user_ids()));
 
 -- Maintenance History
 CREATE TABLE maintenance_history (
@@ -448,11 +527,11 @@ CREATE TABLE maintenance_history (
 
 ALTER TABLE maintenance_history ENABLE ROW LEVEL SECURITY;
 
--- RLS via parent item ownership
-CREATE POLICY "users_own_via_parent" ON maintenance_history
+-- RLS via parent item ownership (family-aware)
+CREATE POLICY "family_access_via_parent" ON maintenance_history
   FOR ALL
-  USING (EXISTS (SELECT 1 FROM maintenance_items WHERE id = maintenance_history.item_id AND user_id = auth.uid()))
-  WITH CHECK (EXISTS (SELECT 1 FROM maintenance_items WHERE id = maintenance_history.item_id AND user_id = auth.uid()));
+  USING (EXISTS (SELECT 1 FROM maintenance_items WHERE id = maintenance_history.item_id AND user_id IN (SELECT get_family_user_ids())))
+  WITH CHECK (EXISTS (SELECT 1 FROM maintenance_items WHERE id = maintenance_history.item_id AND user_id IN (SELECT get_family_user_ids())));
 
 -- View: maintenance items with category, person, and last completed date
 CREATE VIEW maintenance_items_full
@@ -500,8 +579,8 @@ DECLARE
   v_freq_days INTEGER;
   v_completed DATE;
 BEGIN
-  -- Verify ownership
-  SELECT * INTO v_item FROM maintenance_items WHERE id = p_item_id AND user_id = auth.uid();
+  -- Verify ownership (family-aware)
+  SELECT * INTO v_item FROM maintenance_items WHERE id = p_item_id AND user_id IN (SELECT get_family_user_ids());
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Unauthorized or item not found';
   END IF;
@@ -600,6 +679,7 @@ END;
 $$;
 
 -- Seed US holidays for the current user (5 years)
+-- Family-aware: checks if ANY family member already has holidays
 CREATE OR REPLACE FUNCTION seed_holidays()
 RETURNS VOID
 LANGUAGE plpgsql
@@ -611,8 +691,8 @@ DECLARE
   cur_year INT;
   easter DATE;
 BEGIN
-  -- Skip if user already has holidays
-  IF EXISTS (SELECT 1 FROM calendar_events WHERE user_id = auth.uid() AND event_type = 'holiday' LIMIT 1) THEN
+  -- Skip if user or any family member already has holidays
+  IF EXISTS (SELECT 1 FROM calendar_events WHERE user_id IN (SELECT get_family_user_ids()) AND event_type = 'holiday' LIMIT 1) THEN
     RETURN;
   END IF;
 
@@ -662,9 +742,9 @@ CREATE TRIGGER set_user_id_icloud_sync_accounts BEFORE INSERT ON icloud_sync_acc
 
 ALTER TABLE icloud_sync_accounts ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "users_own_data" ON icloud_sync_accounts
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "family_access" ON icloud_sync_accounts
+  FOR ALL USING (user_id IN (SELECT get_family_user_ids()))
+  WITH CHECK (user_id IN (SELECT get_family_user_ids()));
 
 -- Safe view: excludes app_password so the client never sees it
 CREATE VIEW icloud_sync_accounts_safe
@@ -684,24 +764,416 @@ CREATE TABLE event_icloud_sync (
 
 ALTER TABLE event_icloud_sync ENABLE ROW LEVEL SECURITY;
 
--- RLS via parent event ownership
-CREATE POLICY "users_own_via_event" ON event_icloud_sync
+-- RLS via parent event ownership (family-aware)
+CREATE POLICY "family_access_via_event" ON event_icloud_sync
   FOR ALL
-  USING (EXISTS (SELECT 1 FROM calendar_events WHERE id = event_icloud_sync.event_id AND user_id = auth.uid()))
-  WITH CHECK (EXISTS (SELECT 1 FROM calendar_events WHERE id = event_icloud_sync.event_id AND user_id = auth.uid()));
+  USING (EXISTS (SELECT 1 FROM calendar_events WHERE id = event_icloud_sync.event_id AND user_id IN (SELECT get_family_user_ids())))
+  WITH CHECK (EXISTS (SELECT 1 FROM calendar_events WHERE id = event_icloud_sync.event_id AND user_id IN (SELECT get_family_user_ids())));
 
 -- Update calendar events view to include sync account IDs
 DROP VIEW IF EXISTS calendar_events_with_person;
+
+-- Junction table: which family members are assigned to which events
+CREATE TABLE event_family_members (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  event_id BIGINT NOT NULL REFERENCES calendar_events(id) ON DELETE CASCADE,
+  member_id BIGINT NOT NULL REFERENCES family_members(id) ON DELETE CASCADE,
+  UNIQUE(event_id, member_id)
+);
+
+CREATE INDEX idx_event_family_members_event ON event_family_members(event_id);
+
+ALTER TABLE event_family_members ENABLE ROW LEVEL SECURITY;
+
+-- RLS via parent event ownership (family-aware)
+CREATE POLICY "family_access_via_event" ON event_family_members
+  FOR ALL
+  USING (EXISTS (SELECT 1 FROM calendar_events WHERE id = event_family_members.event_id AND user_id IN (SELECT get_family_user_ids())))
+  WITH CHECK (EXISTS (SELECT 1 FROM calendar_events WHERE id = event_family_members.event_id AND user_id IN (SELECT get_family_user_ids())));
+
+-- Migration: copy existing person_id values into junction table (family-aware)
+CREATE OR REPLACE FUNCTION migrate_event_people()
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO event_family_members (event_id, member_id)
+  SELECT id, person_id
+  FROM calendar_events
+  WHERE person_id IS NOT NULL
+    AND user_id IN (SELECT get_family_user_ids())
+    AND NOT EXISTS (
+      SELECT 1 FROM event_family_members efm WHERE efm.event_id = calendar_events.id
+    );
+END;
+$$;
+
 CREATE VIEW calendar_events_with_person
 WITH (security_invoker = true)
 AS
 SELECT
   e.*,
-  m.name AS person_name,
-  m.color AS person_color,
+  COALESCE(
+    (SELECT json_agg(json_build_object('id', fm.id, 'name', fm.name, 'color', fm.color))
+     FROM event_family_members efm
+     JOIN family_members fm ON fm.id = efm.member_id
+     WHERE efm.event_id = e.id),
+    '[]'::json
+  ) AS people,
   COALESCE(
     (SELECT array_agg(s.account_id) FROM event_icloud_sync s WHERE s.event_id = e.id),
     ARRAY[]::BIGINT[]
   ) AS sync_account_ids
-FROM calendar_events e
-LEFT JOIN family_members m ON e.person_id = m.id;
+FROM calendar_events e;
+
+-- ============================================
+-- 8. MEAL PLANNING
+-- ============================================
+
+-- Recipe Categories
+CREATE TABLE recipe_categories (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  icon TEXT,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_recipe_categories_user ON recipe_categories(user_id);
+CREATE TRIGGER set_user_id_recipe_categories BEFORE INSERT ON recipe_categories FOR EACH ROW EXECUTE FUNCTION set_user_id();
+ALTER TABLE recipe_categories ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "family_access" ON recipe_categories
+  FOR ALL USING (user_id IN (SELECT get_family_user_ids()))
+  WITH CHECK (user_id IN (SELECT get_family_user_ids()));
+
+-- Recipes
+CREATE TABLE recipes (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  category_id BIGINT REFERENCES recipe_categories(id) ON DELETE SET NULL,
+  servings INTEGER,
+  prep_time INTEGER,
+  cook_time INTEGER,
+  instructions TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_recipes_user ON recipes(user_id);
+CREATE TRIGGER set_user_id_recipes BEFORE INSERT ON recipes FOR EACH ROW EXECUTE FUNCTION set_user_id();
+ALTER TABLE recipes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "family_access" ON recipes
+  FOR ALL USING (user_id IN (SELECT get_family_user_ids()))
+  WITH CHECK (user_id IN (SELECT get_family_user_ids()));
+
+-- Recipe Ingredients (child of recipes, CASCADE delete)
+CREATE TABLE recipe_ingredients (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  recipe_id BIGINT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  quantity REAL,
+  unit TEXT,
+  sort_order INTEGER DEFAULT 0
+);
+
+CREATE INDEX idx_recipe_ingredients_recipe ON recipe_ingredients(recipe_id);
+ALTER TABLE recipe_ingredients ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "family_access_via_parent" ON recipe_ingredients
+  FOR ALL
+  USING (EXISTS (SELECT 1 FROM recipes WHERE id = recipe_ingredients.recipe_id AND user_id IN (SELECT get_family_user_ids())))
+  WITH CHECK (EXISTS (SELECT 1 FROM recipes WHERE id = recipe_ingredients.recipe_id AND user_id IN (SELECT get_family_user_ids())));
+
+-- Meal Plan Entries
+CREATE TABLE meal_plan_entries (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  meal_type TEXT NOT NULL CHECK (meal_type IN ('breakfast', 'lunch', 'dinner')),
+  recipe_id BIGINT REFERENCES recipes(id) ON DELETE SET NULL,
+  custom_title TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_meal_plan_entries_user ON meal_plan_entries(user_id);
+CREATE INDEX idx_meal_plan_entries_date ON meal_plan_entries(date);
+CREATE TRIGGER set_user_id_meal_plan_entries BEFORE INSERT ON meal_plan_entries FOR EACH ROW EXECUTE FUNCTION set_user_id();
+ALTER TABLE meal_plan_entries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "family_access" ON meal_plan_entries
+  FOR ALL USING (user_id IN (SELECT get_family_user_ids()))
+  WITH CHECK (user_id IN (SELECT get_family_user_ids()));
+
+-- View: Recipes with category info and usage count
+CREATE VIEW recipes_full
+WITH (security_invoker = true)
+AS
+SELECT
+  r.*,
+  c.name AS category_name,
+  c.icon AS category_icon,
+  COALESCE((SELECT COUNT(*) FROM meal_plan_entries m WHERE m.recipe_id = r.id), 0) AS usage_count
+FROM recipes r
+LEFT JOIN recipe_categories c ON r.category_id = c.id;
+
+-- View: Meal plan entries with recipe details
+CREATE VIEW meal_plan_entries_full
+WITH (security_invoker = true)
+AS
+SELECT
+  m.*,
+  r.title AS recipe_title,
+  r.description AS recipe_description,
+  r.prep_time AS recipe_prep_time,
+  r.cook_time AS recipe_cook_time,
+  r.servings AS recipe_servings,
+  rc.name AS recipe_category_name,
+  rc.icon AS recipe_category_icon
+FROM meal_plan_entries m
+LEFT JOIN recipes r ON m.recipe_id = r.id
+LEFT JOIN recipe_categories rc ON r.category_id = rc.id;
+
+-- RPC: Add meal ingredients to grocery list for a date range (family-aware)
+CREATE OR REPLACE FUNCTION add_meal_ingredients_to_grocery(p_date_start TEXT, p_date_end TEXT)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  agg RECORD;
+  item_count INTEGER := 0;
+BEGIN
+  FOR agg IN
+    SELECT
+      ri.name,
+      SUM(ri.quantity) AS total_quantity,
+      ri.unit
+    FROM meal_plan_entries mpe
+    JOIN recipe_ingredients ri ON ri.recipe_id = mpe.recipe_id
+    WHERE mpe.user_id IN (SELECT get_family_user_ids())
+      AND mpe.date >= p_date_start
+      AND mpe.date <= p_date_end
+      AND mpe.recipe_id IS NOT NULL
+    GROUP BY ri.name, ri.unit
+  LOOP
+    PERFORM add_grocery_item(
+      p_name := agg.name,
+      p_quantity := agg.total_quantity,
+      p_unit := agg.unit,
+      p_category := NULL
+    );
+    item_count := item_count + 1;
+  END LOOP;
+
+  RETURN item_count;
+END;
+$$;
+
+-- ============================================
+-- 9. FAMILY SHARING RPCs
+-- ============================================
+
+-- Create a new family and generate an invite code
+CREATE OR REPLACE FUNCTION create_family_and_invite(p_name TEXT)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_family_id UUID;
+  v_invite_code TEXT;
+BEGIN
+  -- Check if user is already in a family
+  IF EXISTS (SELECT 1 FROM family_users WHERE user_id = auth.uid()) THEN
+    RAISE EXCEPTION 'You are already in a family';
+  END IF;
+
+  -- Create family
+  INSERT INTO families (name) VALUES (p_name) RETURNING id INTO v_family_id;
+
+  -- Add creator as owner
+  INSERT INTO family_users (family_id, user_id, role) VALUES (v_family_id, auth.uid(), 'owner');
+
+  -- Generate 8-char invite code
+  v_invite_code := upper(substr(md5(random()::text || clock_timestamp()::text), 1, 8));
+
+  -- Create invite
+  INSERT INTO family_invites (family_id, invite_code, invited_by)
+  VALUES (v_family_id, v_invite_code, auth.uid());
+
+  RETURN json_build_object(
+    'family_id', v_family_id,
+    'family_name', p_name,
+    'invite_code', v_invite_code
+  );
+END;
+$$;
+
+-- Accept a family invite
+CREATE OR REPLACE FUNCTION accept_family_invite(p_code TEXT)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_invite family_invites;
+  v_family_name TEXT;
+BEGIN
+  -- Check if user is already in a family
+  IF EXISTS (SELECT 1 FROM family_users WHERE user_id = auth.uid()) THEN
+    RAISE EXCEPTION 'You are already in a family. Leave your current family first.';
+  END IF;
+
+  -- Find valid invite
+  SELECT * INTO v_invite FROM family_invites
+  WHERE invite_code = upper(p_code)
+    AND accepted_by IS NULL
+    AND expires_at > NOW();
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Invalid or expired invite code';
+  END IF;
+
+  -- Add user to family
+  INSERT INTO family_users (family_id, user_id, role) VALUES (v_invite.family_id, auth.uid(), 'member');
+
+  -- Mark invite as accepted
+  UPDATE family_invites SET accepted_by = auth.uid(), accepted_at = NOW() WHERE id = v_invite.id;
+
+  -- Get family name
+  SELECT name INTO v_family_name FROM families WHERE id = v_invite.family_id;
+
+  RETURN json_build_object(
+    'family_id', v_invite.family_id,
+    'family_name', v_family_name
+  );
+END;
+$$;
+
+-- Get family info for the current user
+CREATE OR REPLACE FUNCTION get_family_info()
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_family_id UUID;
+  v_family_name TEXT;
+  v_members JSON;
+  v_pending_invites JSON;
+BEGIN
+  -- Find user's family
+  SELECT fu.family_id, f.name INTO v_family_id, v_family_name
+  FROM family_users fu
+  JOIN families f ON f.id = fu.family_id
+  WHERE fu.user_id = auth.uid();
+
+  IF v_family_id IS NULL THEN
+    RETURN json_build_object('in_family', false);
+  END IF;
+
+  -- Get members
+  SELECT json_agg(json_build_object(
+    'user_id', fu.user_id,
+    'email', u.email,
+    'role', fu.role,
+    'joined_at', fu.joined_at
+  ) ORDER BY fu.joined_at)
+  INTO v_members
+  FROM family_users fu
+  JOIN auth.users u ON u.id = fu.user_id
+  WHERE fu.family_id = v_family_id;
+
+  -- Get pending invites
+  SELECT json_agg(json_build_object(
+    'id', fi.id,
+    'invite_code', fi.invite_code,
+    'expires_at', fi.expires_at
+  ) ORDER BY fi.expires_at DESC)
+  INTO v_pending_invites
+  FROM family_invites fi
+  WHERE fi.family_id = v_family_id
+    AND fi.accepted_by IS NULL
+    AND fi.expires_at > NOW();
+
+  RETURN json_build_object(
+    'in_family', true,
+    'family_id', v_family_id,
+    'family_name', v_family_name,
+    'members', COALESCE(v_members, '[]'::json),
+    'pending_invites', COALESCE(v_pending_invites, '[]'::json)
+  );
+END;
+$$;
+
+-- Generate a new invite code for existing family
+CREATE OR REPLACE FUNCTION create_family_invite()
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_family_id UUID;
+  v_invite_code TEXT;
+  v_invite family_invites;
+BEGIN
+  -- Find user's family
+  SELECT family_id INTO v_family_id FROM family_users WHERE user_id = auth.uid();
+
+  IF v_family_id IS NULL THEN
+    RAISE EXCEPTION 'You are not in a family';
+  END IF;
+
+  -- Generate 8-char invite code
+  v_invite_code := upper(substr(md5(random()::text || clock_timestamp()::text), 1, 8));
+
+  -- Create invite
+  INSERT INTO family_invites (family_id, invite_code, invited_by)
+  VALUES (v_family_id, v_invite_code, auth.uid())
+  RETURNING * INTO v_invite;
+
+  RETURN json_build_object(
+    'invite_code', v_invite_code,
+    'expires_at', v_invite.expires_at
+  );
+END;
+$$;
+
+-- Leave the current family
+CREATE OR REPLACE FUNCTION leave_family()
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_family_id UUID;
+  v_member_count INTEGER;
+BEGIN
+  -- Find user's family
+  SELECT family_id INTO v_family_id FROM family_users WHERE user_id = auth.uid();
+
+  IF v_family_id IS NULL THEN
+    RAISE EXCEPTION 'You are not in a family';
+  END IF;
+
+  -- Remove user from family
+  DELETE FROM family_users WHERE family_id = v_family_id AND user_id = auth.uid();
+
+  -- Check if family is now empty
+  SELECT COUNT(*) INTO v_member_count FROM family_users WHERE family_id = v_family_id;
+
+  IF v_member_count = 0 THEN
+    -- Delete the family (cascades to invites)
+    DELETE FROM families WHERE id = v_family_id;
+  END IF;
+END;
+$$;

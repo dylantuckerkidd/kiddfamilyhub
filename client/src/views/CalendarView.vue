@@ -27,7 +27,7 @@ const eventForm = ref({
   end_time: '',
   all_day: true,
   multi_day: false,
-  person_id: null as number | null,
+  person_ids: [] as number[],
   recurring: false,
   recurring_days: [] as number[],
   recurring_months: 1,
@@ -44,6 +44,15 @@ function toggleRecurringDay(day: number) {
     eventForm.value.recurring_days.splice(idx, 1)
   } else {
     eventForm.value.recurring_days.push(day)
+  }
+}
+
+function togglePerson(personId: number) {
+  const idx = eventForm.value.person_ids.indexOf(personId)
+  if (idx >= 0) {
+    eventForm.value.person_ids.splice(idx, 1)
+  } else {
+    eventForm.value.person_ids.push(personId)
   }
 }
 
@@ -237,13 +246,30 @@ const agendaItems = computed(() => {
 })
 
 function getEventStyle(event: CalendarEvent) {
-  if (event.person_color) {
+  const people = event.people || []
+
+  if (people.length === 1) {
     return {
-      backgroundColor: event.person_color + '30',
-      borderLeft: `3px solid ${event.person_color}`,
-      color: event.person_color
+      backgroundColor: people[0].color + '30',
+      borderLeft: `3px solid ${people[0].color}`,
+      color: people[0].color
     }
   }
+
+  if (people.length >= 2) {
+    const colors = people.map(p => p.color + '30')
+    const pct = 100 / colors.length
+    const stops = colors.map((c, i) => `${c} ${i * pct}%, ${c} ${(i + 1) * pct}%`).join(', ')
+    const borderColors = people.map(p => p.color)
+    const borderStops = borderColors.map((c, i) => `${c} ${i * pct}%, ${c} ${(i + 1) * pct}%`).join(', ')
+    return {
+      background: `linear-gradient(to right, ${stops})`,
+      borderLeft: '3px solid transparent',
+      borderImage: `linear-gradient(to bottom, ${borderStops}) 1`,
+      color: people[0].color
+    }
+  }
+
   // Holiday events get indigo/blue
   if (event.event_type === 'holiday') {
     return {
@@ -260,7 +286,7 @@ function getEventStyle(event: CalendarEvent) {
       color: 'rgb(225, 29, 72)'
     }
   }
-  // Shared event - use a nice teal/cyan color that's readable in both modes
+  // Shared event - use a nice teal/cyan color
   return {
     backgroundColor: 'rgb(20, 184, 166, 0.2)',
     borderLeft: '3px solid rgb(20, 184, 166)',
@@ -357,7 +383,7 @@ function openAddEvent(dateStr: string) {
     end_time: '',
     all_day: true,
     multi_day: false,
-    person_id: null,
+    person_ids: [],
     recurring: false,
     recurring_days: [],
     recurring_months: 1,
@@ -381,7 +407,7 @@ function openEditEvent(event: CalendarEvent) {
     end_time: event.end_time || '',
     all_day: !!event.all_day,
     multi_day: !!hasEndDate,
-    person_id: event.person_id,
+    person_ids: (event.people || []).map(p => p.id),
     recurring: false,
     recurring_days: [],
     recurring_months: 1,
@@ -400,6 +426,8 @@ async function saveEvent() {
 
   const syncIds = eventForm.value.sync_account_ids
 
+  const personIds = eventForm.value.person_ids
+
   if (editingEvent.value) {
     await store.updateEvent(editingEvent.value.id, {
       title: eventForm.value.title,
@@ -409,14 +437,14 @@ async function saveEvent() {
       time: eventForm.value.all_day ? null : eventForm.value.time || null,
       end_time: endTime,
       all_day: eventForm.value.all_day,
-      person_id: eventForm.value.person_id,
+      person_ids: personIds,
       sync_account_ids: syncIds
     })
   } else if (eventForm.value.is_birthday) {
     await store.addBirthdayEvent({
       title: eventForm.value.title,
       date: eventForm.value.date,
-      person_id: eventForm.value.person_id,
+      person_ids: personIds,
       years: eventForm.value.birthday_years,
       sync_account_ids: syncIds
     })
@@ -427,7 +455,7 @@ async function saveEvent() {
       time: eventForm.value.all_day ? undefined : eventForm.value.time || undefined,
       end_time: endTime || undefined,
       all_day: eventForm.value.all_day,
-      person_id: eventForm.value.person_id,
+      person_ids: personIds,
       days: eventForm.value.recurring_days,
       start_date: eventForm.value.date,
       months: eventForm.value.recurring_months,
@@ -442,7 +470,7 @@ async function saveEvent() {
       time: eventForm.value.all_day ? undefined : eventForm.value.time || undefined,
       end_time: endTime || undefined,
       all_day: eventForm.value.all_day,
-      person_id: eventForm.value.person_id,
+      person_ids: personIds,
       sync_account_ids: syncIds
     })
   }
@@ -463,7 +491,7 @@ async function saveEventSeries() {
     time: eventForm.value.all_day ? null : eventForm.value.time || null,
     end_time: endTime,
     all_day: eventForm.value.all_day,
-    person_id: eventForm.value.person_id,
+    person_ids: eventForm.value.person_ids,
     sync_account_ids: eventForm.value.sync_account_ids
   } as any)
 
@@ -765,7 +793,7 @@ watch([currentDate, viewMode], () => {
                   <template v-if="event.end_time">- {{ formatTime(event.end_time) }}</template>
                 </div>
                 <div v-else-if="event.all_day" class="text-xs mt-1 opacity-75">All day</div>
-                <div v-if="event.person_name" class="text-xs mt-1 opacity-75">{{ event.person_name }}</div>
+                <div v-if="event.people?.length" class="text-xs mt-1 opacity-75">{{ event.people.map(p => p.name).join(', ') }}</div>
               </div>
 
               <div
@@ -828,7 +856,7 @@ watch([currentDate, viewMode], () => {
                 </div>
                 <div v-else-if="event.all_day" class="text-xs mt-1 opacity-75">All day</div>
                 <div v-if="event.description" class="text-xs mt-2 opacity-60 line-clamp-2">{{ event.description }}</div>
-                <div v-if="event.person_name" class="text-xs mt-2 opacity-75">{{ event.person_name }}</div>
+                <div v-if="event.people?.length" class="text-xs mt-2 opacity-75">{{ event.people.map(p => p.name).join(', ') }}</div>
               </div>
 
               <!-- Todos with due dates -->
@@ -910,7 +938,7 @@ watch([currentDate, viewMode], () => {
                   <template v-if="event.end_time">- {{ formatTime(event.end_time) }}</template>
                 </div>
                 <div v-else-if="event.all_day" class="text-xs mt-1 opacity-75">All day</div>
-                <div v-if="event.person_name" class="text-xs mt-1 opacity-75">{{ event.person_name }}</div>
+                <div v-if="event.people?.length" class="text-xs mt-1 opacity-75">{{ event.people.map(p => p.name).join(', ') }}</div>
               </div>
 
               <!-- Todos -->
@@ -1102,17 +1130,24 @@ watch([currentDate, viewMode], () => {
             </div>
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assign to</label>
-            <select
-              v-model="eventForm.person_id"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-            >
-              <option :value="null">No one (shared)</option>
-              <option v-for="person in store.familyMembers" :key="person.id" :value="person.id">
+          <div v-if="store.familyMembers.length > 0">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Assign to</label>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="person in store.familyMembers"
+                :key="person.id"
+                type="button"
+                @click="togglePerson(person.id)"
+                class="px-3 py-1.5 text-xs rounded-lg font-medium transition-colors flex items-center gap-1.5"
+                :class="eventForm.person_ids.includes(person.id)
+                  ? 'ring-1 ring-offset-1 dark:ring-offset-gray-800'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'"
+                :style="eventForm.person_ids.includes(person.id) ? { backgroundColor: person.color + '25', color: person.color, '--tw-ring-color': person.color } : {}"
+              >
+                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="{ backgroundColor: person.color }"></span>
                 {{ person.name }}
-              </option>
-            </select>
+              </button>
+            </div>
           </div>
 
           <div>

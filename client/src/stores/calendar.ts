@@ -25,9 +25,7 @@ export interface CalendarEvent {
   end_date: string | null
   end_time: string | null
   all_day: boolean
-  person_id: number | null
-  person_name: string | null
-  person_color: string | null
+  people: Array<{ id: number; name: string; color: string }>
   recurring_group_id: string | null
   event_type: string | null
   sync_account_ids: number[]
@@ -137,6 +135,25 @@ export const useCalendarStore = defineStore('calendar', () => {
     }).catch(err => console.error(`[iCloud Sync] ${action} failed:`, err))
   }
 
+  // ---- Event People (junction table) ----
+
+  async function syncEventPeople(eventId: number, personIds: number[]) {
+    // Delete existing assignments
+    await supabase
+      .from('event_family_members')
+      .delete()
+      .eq('event_id', eventId)
+
+    // Insert new assignments
+    if (personIds.length > 0) {
+      const rows = personIds.map(memberId => ({ event_id: eventId, member_id: memberId }))
+      const { error } = await supabase
+        .from('event_family_members')
+        .insert(rows)
+      if (error) throw error
+    }
+  }
+
   // ---- Calendar Events ----
 
   async function seedHolidays() {
@@ -164,6 +181,7 @@ export const useCalendarStore = defineStore('calendar', () => {
       if (error) throw error
       events.value = (data ?? []).map(e => ({
         ...e,
+        people: e.people ?? [],
         sync_account_ids: e.sync_account_ids ?? []
       }))
       initialized.value = true
@@ -180,11 +198,12 @@ export const useCalendarStore = defineStore('calendar', () => {
     end_date?: string
     end_time?: string
     all_day?: boolean
-    person_id?: number | null
+    person_ids?: number[]
     event_type?: string | null
     sync_account_ids?: number[]
   }) {
     const syncAccountIds = event.sync_account_ids ?? []
+    const personIds = event.person_ids ?? []
 
     const { data, error } = await supabase
       .from('calendar_events')
@@ -196,12 +215,16 @@ export const useCalendarStore = defineStore('calendar', () => {
         end_date: event.end_date || null,
         end_time: event.all_day ? null : event.end_time || null,
         all_day: event.all_day ?? true,
-        person_id: event.person_id ?? null,
         event_type: event.event_type || null
       })
       .select('*')
       .single()
     if (error) throw error
+
+    // Sync people assignments
+    if (personIds.length > 0) {
+      await syncEventPeople(data.id, personIds)
+    }
 
     // Fire-and-forget sync to iCloud
     if (syncAccountIds.length > 0) {
@@ -215,11 +238,12 @@ export const useCalendarStore = defineStore('calendar', () => {
   async function addBirthdayEvent(data: {
     title: string
     date: string
-    person_id?: number | null
+    person_ids?: number[]
     years?: number
     sync_account_ids?: number[]
   }) {
     const syncAccountIds = data.sync_account_ids ?? []
+    const personIds = data.person_ids ?? []
     const groupId = crypto.randomUUID()
     const baseDate = new Date(data.date + 'T00:00:00')
     const years = data.years || 5
@@ -228,7 +252,6 @@ export const useCalendarStore = defineStore('calendar', () => {
       title: string
       date: string
       all_day: boolean
-      person_id: number | null
       recurring_group_id: string
       event_type: string
     }> = []
@@ -241,7 +264,6 @@ export const useCalendarStore = defineStore('calendar', () => {
         title: data.title,
         date: dateStr,
         all_day: true,
-        person_id: data.person_id ?? null,
         recurring_group_id: groupId,
         event_type: 'birthday'
       })
@@ -255,7 +277,14 @@ export const useCalendarStore = defineStore('calendar', () => {
       .select('id')
     if (error) throw error
 
-    // Sync each created event
+    // Sync people assignments for each created event
+    if (personIds.length > 0 && inserted) {
+      for (const row of inserted) {
+        await syncEventPeople(row.id, personIds)
+      }
+    }
+
+    // Sync each created event to iCloud
     if (syncAccountIds.length > 0 && inserted) {
       for (const row of inserted) {
         fireAndForgetSync('sync-create', { event_id: row.id, account_ids: syncAccountIds })
@@ -266,14 +295,20 @@ export const useCalendarStore = defineStore('calendar', () => {
     return events.value.filter(e => e.recurring_group_id === groupId)
   }
 
-  async function updateEvent(id: number, data: Partial<CalendarEvent> & { sync_account_ids?: number[] }) {
+  async function updateEvent(id: number, data: Partial<CalendarEvent> & { sync_account_ids?: number[]; person_ids?: number[] }) {
     const syncAccountIds = data.sync_account_ids
-    const { person_name, person_color, sync_account_ids: _, ...updateData } = data as any
+    const personIds = data.person_ids
+    const { people: _p, sync_account_ids: _s, person_ids: _pi, ...updateData } = data as any
     const { error } = await supabase
       .from('calendar_events')
       .update(updateData)
       .eq('id', id)
     if (error) throw error
+
+    // Sync people assignments if provided
+    if (personIds !== undefined) {
+      await syncEventPeople(id, personIds)
+    }
 
     // If sync_account_ids provided, handle diff
     if (syncAccountIds !== undefined) {
@@ -312,13 +347,14 @@ export const useCalendarStore = defineStore('calendar', () => {
     time?: string
     end_time?: string
     all_day?: boolean
-    person_id?: number | null
+    person_ids?: number[]
     days: number[]
     start_date: string
     months: number
     sync_account_ids?: number[]
   }) {
     const syncAccountIds = data.sync_account_ids ?? []
+    const personIds = data.person_ids ?? []
     const groupId = crypto.randomUUID()
     const startDate = new Date(data.start_date + 'T00:00:00')
     const endDate = new Date(startDate)
@@ -331,7 +367,6 @@ export const useCalendarStore = defineStore('calendar', () => {
       time: string | null
       end_time: string | null
       all_day: boolean
-      person_id: number | null
       recurring_group_id: string
     }> = []
 
@@ -346,7 +381,6 @@ export const useCalendarStore = defineStore('calendar', () => {
           time: data.all_day ? null : data.time || null,
           end_time: data.all_day ? null : data.end_time || null,
           all_day: data.all_day ?? true,
-          person_id: data.person_id ?? null,
           recurring_group_id: groupId
         })
       }
@@ -361,7 +395,14 @@ export const useCalendarStore = defineStore('calendar', () => {
       .select('id')
     if (error) throw error
 
-    // Sync each created event
+    // Sync people assignments for each created event
+    if (personIds.length > 0 && inserted) {
+      for (const row of inserted) {
+        await syncEventPeople(row.id, personIds)
+      }
+    }
+
+    // Sync each created event to iCloud
     if (syncAccountIds.length > 0 && inserted) {
       for (const row of inserted) {
         fireAndForgetSync('sync-create', { event_id: row.id, account_ids: syncAccountIds })
@@ -398,17 +439,25 @@ export const useCalendarStore = defineStore('calendar', () => {
     }
   }
 
-  async function updateEventSeries(groupId: string, data: Partial<CalendarEvent> & { sync_account_ids?: number[] }) {
+  async function updateEventSeries(groupId: string, data: Partial<CalendarEvent> & { sync_account_ids?: number[]; person_ids?: number[] }) {
     const syncAccountIds = data.sync_account_ids
-    const { person_name, person_color, sync_account_ids: _, ...updateData } = data as any
+    const personIds = data.person_ids
+    const { people: _p, sync_account_ids: _s, person_ids: _pi, ...updateData } = data as any
     const { error } = await supabase
       .from('calendar_events')
       .update(updateData)
       .eq('recurring_group_id', groupId)
     if (error) throw error
 
-    // Fire-and-forget: update all synced events in the series
+    // Sync people assignments for each event in the series
     const seriesEvents = events.value.filter(e => e.recurring_group_id === groupId)
+    if (personIds !== undefined) {
+      for (const ev of seriesEvents) {
+        await syncEventPeople(ev.id, personIds)
+      }
+    }
+
+    // Fire-and-forget: update all synced events in the series
     for (const ev of seriesEvents) {
       if (syncAccountIds !== undefined) {
         fireAndForgetSync('sync-diff', { event_id: ev.id, new_account_ids: syncAccountIds })

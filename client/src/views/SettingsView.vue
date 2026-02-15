@@ -1,9 +1,22 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useCalendarStore } from '@/stores/calendar'
+import { useAuthStore } from '@/stores/auth'
 
 const calendarStore = useCalendarStore()
+const authStore = useAuthStore()
 
+// Family sharing state
+const showCreateFamily = ref(false)
+const showJoinFamily = ref(false)
+const familyName = ref('')
+const inviteCode = ref('')
+const familyError = ref('')
+const familyLoading = ref(false)
+const copiedCode = ref(false)
+const confirmLeave = ref(false)
+
+// iCloud state
 const showAccountForm = ref(false)
 const editingAccountId = ref<number | null>(null)
 const accountForm = ref({ label: '', email: '', app_password: '' })
@@ -14,6 +27,63 @@ onMounted(() => {
   calendarStore.fetchICloudAccounts()
 })
 
+// Family sharing methods
+async function handleCreateFamily() {
+  if (!familyName.value.trim()) return
+  familyLoading.value = true
+  familyError.value = ''
+  const result = await authStore.createFamily(familyName.value.trim())
+  familyLoading.value = false
+  if (!result.success) {
+    familyError.value = result.error || 'Failed to create family'
+  } else {
+    showCreateFamily.value = false
+    familyName.value = ''
+  }
+}
+
+async function handleJoinFamily() {
+  if (!inviteCode.value.trim()) return
+  familyLoading.value = true
+  familyError.value = ''
+  const result = await authStore.acceptInvite(inviteCode.value.trim())
+  familyLoading.value = false
+  if (!result.success) {
+    familyError.value = result.error || 'Failed to join family'
+  } else {
+    showJoinFamily.value = false
+    inviteCode.value = ''
+  }
+}
+
+async function handleGenerateInvite() {
+  familyLoading.value = true
+  familyError.value = ''
+  const result = await authStore.createInvite()
+  familyLoading.value = false
+  if (!result.success) {
+    familyError.value = result.error || 'Failed to generate invite'
+  }
+}
+
+async function handleLeaveFamily() {
+  familyLoading.value = true
+  familyError.value = ''
+  const result = await authStore.leaveFamily()
+  familyLoading.value = false
+  confirmLeave.value = false
+  if (!result.success) {
+    familyError.value = result.error || 'Failed to leave family'
+  }
+}
+
+function copyInviteCode(code: string) {
+  navigator.clipboard.writeText(code)
+  copiedCode.value = true
+  setTimeout(() => { copiedCode.value = false }, 2000)
+}
+
+// iCloud methods
 function openAddAccount() {
   editingAccountId.value = null
   accountForm.value = { label: '', email: '', app_password: '' }
@@ -67,10 +137,197 @@ async function testAccount(id: number) {
   <div class="space-y-8">
     <div>
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
-      <p class="text-gray-500 dark:text-gray-400 mt-1">Manage your connected accounts</p>
+      <p class="text-gray-500 dark:text-gray-400 mt-1">Manage your account and connected services</p>
     </div>
 
     <div class="space-y-6">
+      <!-- Family Sharing -->
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Family Sharing</h2>
+
+        <!-- Error display -->
+        <p v-if="familyError" class="text-sm text-red-600 dark:text-red-400 mb-3">{{ familyError }}</p>
+
+        <!-- Not in a family -->
+        <template v-if="!authStore.inFamily">
+          <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">
+            Create or join a family to share calendars, todos, grocery lists, and more with your household.
+          </p>
+
+          <!-- Create family -->
+          <div v-if="showCreateFamily" class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl space-y-3 mb-3">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Create a Family</h3>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Family Name</label>
+              <input
+                v-model="familyName"
+                type="text"
+                class="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+                placeholder="e.g. The Smiths"
+                @keyup.enter="handleCreateFamily"
+              />
+            </div>
+            <div class="flex gap-2">
+              <button
+                @click="showCreateFamily = false; familyError = ''"
+                class="px-3 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                @click="handleCreateFamily"
+                :disabled="!familyName.trim() || familyLoading"
+                class="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-sm hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {{ familyLoading ? 'Creating...' : 'Create' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Join family -->
+          <div v-else-if="showJoinFamily" class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl space-y-3 mb-3">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Join a Family</h3>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Invite Code</label>
+              <input
+                v-model="inviteCode"
+                type="text"
+                class="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm font-mono tracking-wider uppercase"
+                placeholder="ABCD1234"
+                maxlength="8"
+                @keyup.enter="handleJoinFamily"
+              />
+            </div>
+            <div class="flex gap-2">
+              <button
+                @click="showJoinFamily = false; familyError = ''"
+                class="px-3 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                @click="handleJoinFamily"
+                :disabled="!inviteCode.trim() || familyLoading"
+                class="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-sm hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {{ familyLoading ? 'Joining...' : 'Join' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Action buttons -->
+          <div v-else class="flex gap-3">
+            <button
+              @click="showCreateFamily = true; familyError = ''"
+              class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-colors text-sm"
+            >
+              Create Family
+            </button>
+            <button
+              @click="showJoinFamily = true; familyError = ''"
+              class="px-3 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+            >
+              Have an invite code?
+            </button>
+          </div>
+        </template>
+
+        <!-- In a family -->
+        <template v-else>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Everyone in <span class="font-medium text-gray-900 dark:text-white">{{ authStore.familyInfo.family_name }}</span> shares calendars, todos, grocery lists, recipes, and maintenance logs.
+          </p>
+
+          <!-- Members list -->
+          <div class="space-y-2 mb-4">
+            <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">Members</h3>
+            <div
+              v-for="member in authStore.familyInfo.members"
+              :key="member.user_id"
+              class="flex items-center gap-3 p-2.5 bg-gray-50 dark:bg-gray-700 rounded-xl"
+            >
+              <div class="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                <span class="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                  {{ member.email.charAt(0).toUpperCase() }}
+                </span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm text-gray-900 dark:text-white truncate">
+                  {{ member.email }}
+                  <span v-if="member.user_id === authStore.user?.id" class="text-gray-400 dark:text-gray-500">(you)</span>
+                </div>
+              </div>
+              <span
+                class="px-2 py-0.5 text-xs rounded-full font-medium"
+                :class="member.role === 'owner'
+                  ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                  : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300'"
+              >
+                {{ member.role }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Invite section -->
+          <div class="mb-4">
+            <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Invite</h3>
+            <div v-if="authStore.familyInfo.pending_invites?.length" class="space-y-2">
+              <div
+                v-for="invite in authStore.familyInfo.pending_invites"
+                :key="invite.id"
+                class="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-gray-700 rounded-xl"
+              >
+                <code class="flex-1 text-sm font-mono tracking-wider text-gray-900 dark:text-white">{{ invite.invite_code }}</code>
+                <span class="text-xs text-gray-400 dark:text-gray-500">expires {{ new Date(invite.expires_at).toLocaleDateString() }}</span>
+                <button
+                  @click="copyInviteCode(invite.invite_code)"
+                  class="px-2.5 py-1.5 text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                >
+                  {{ copiedCode ? 'Copied!' : 'Copy' }}
+                </button>
+              </div>
+            </div>
+            <button
+              @click="handleGenerateInvite"
+              :disabled="familyLoading"
+              class="mt-2 px-3 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors disabled:opacity-50"
+            >
+              {{ familyLoading ? 'Generating...' : 'Generate New Invite' }}
+            </button>
+          </div>
+
+          <!-- Leave family -->
+          <div v-if="!confirmLeave">
+            <button
+              @click="confirmLeave = true"
+              class="px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+            >
+              Leave Family
+            </button>
+          </div>
+          <div v-else class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+            <p class="text-sm text-red-700 dark:text-red-300 mb-2">
+              Are you sure? Your data will become private and you'll lose access to shared items.
+            </p>
+            <div class="flex gap-2">
+              <button
+                @click="confirmLeave = false"
+                class="px-3 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                @click="handleLeaveFamily"
+                :disabled="familyLoading"
+                class="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {{ familyLoading ? 'Leaving...' : 'Leave Family' }}
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+
       <!-- iCloud Calendar Sync -->
       <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
         <div class="flex items-center justify-between mb-2">
