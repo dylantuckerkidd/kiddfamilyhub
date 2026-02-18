@@ -251,6 +251,13 @@ function removeIngredientRow(index: number) {
   ingredientRows.value.splice(index, 1)
 }
 
+function moveIngredient(index: number, direction: -1 | 1) {
+  const target = index + direction
+  if (target < 0 || target >= ingredientRows.value.length) return
+  const rows = ingredientRows.value
+  ;[rows[index], rows[target]] = [rows[target], rows[index]]
+}
+
 async function saveRecipe() {
   if (!recipeForm.value.title.trim()) return
 
@@ -323,6 +330,8 @@ onMounted(async () => {
     store.fetchMealPlan(currentWeekStart.value, weekEnd.value),
   ])
 })
+
+const refresh = () => window.location.reload()
 </script>
 
 <template>
@@ -330,7 +339,10 @@ onMounted(async () => {
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Meal Plan</h1>
+        <div class="flex items-center gap-2">
+          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Meal Plan</h1>
+          <button @click="refresh" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Refresh"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>
+        </div>
         <p class="text-gray-500 dark:text-gray-400 mt-1">Plan your weekly meals and manage recipes</p>
       </div>
     </div>
@@ -859,6 +871,24 @@ onMounted(async () => {
             </div>
             <div class="space-y-2">
               <div v-for="(ing, i) in ingredientRows" :key="i" class="flex gap-2 items-start">
+                <div class="flex flex-col -space-y-0.5">
+                  <button
+                    type="button"
+                    @click="moveIngredient(i, -1)"
+                    :disabled="i === 0"
+                    class="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+                  </button>
+                  <button
+                    type="button"
+                    @click="moveIngredient(i, 1)"
+                    :disabled="i === ingredientRows.length - 1"
+                    class="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                  </button>
+                </div>
                 <input
                   v-model.number="ing.quantity"
                   type="number"

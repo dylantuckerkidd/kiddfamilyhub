@@ -123,6 +123,8 @@ async function deleteItem() {
 onMounted(() => {
   store.fetchItems()
 })
+
+const refresh = () => window.location.reload()
 </script>
 
 <template>
@@ -130,7 +132,10 @@ onMounted(() => {
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Grocery List</h1>
+        <div class="flex items-center gap-2">
+          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Grocery List</h1>
+          <button @click="refresh" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Refresh"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>
+        </div>
         <p class="text-gray-500 dark:text-gray-400 mt-1">Keep track of what you need</p>
       </div>
 
