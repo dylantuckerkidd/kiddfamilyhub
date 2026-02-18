@@ -1022,7 +1022,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_invite family_invites;
+  v_invite RECORD;
   v_family_name TEXT;
 BEGIN
   -- Check if user is already in a family
@@ -1045,6 +1045,19 @@ BEGIN
 
   -- Mark invite as accepted
   UPDATE family_invites SET accepted_by = auth.uid(), accepted_at = NOW() WHERE id = v_invite.id;
+
+  -- Delete joining user's holidays that already exist in the family (by title+date)
+  DELETE FROM calendar_events
+  WHERE user_id = auth.uid()
+    AND event_type = 'holiday'
+    AND EXISTS (
+      SELECT 1 FROM calendar_events ce2
+      JOIN family_users fu ON fu.user_id = ce2.user_id AND fu.family_id = v_invite.family_id
+      WHERE ce2.event_type = 'holiday'
+        AND ce2.title = calendar_events.title
+        AND ce2.date = calendar_events.date
+        AND ce2.user_id != auth.uid()
+    );
 
   -- Get family name
   SELECT name INTO v_family_name FROM families WHERE id = v_invite.family_id;
@@ -1123,7 +1136,7 @@ AS $$
 DECLARE
   v_family_id UUID;
   v_invite_code TEXT;
-  v_invite family_invites;
+  v_invite RECORD;
 BEGIN
   -- Find user's family
   SELECT family_id INTO v_family_id FROM family_users WHERE user_id = auth.uid();
