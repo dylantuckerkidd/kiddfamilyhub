@@ -294,6 +294,32 @@ function getEventStyle(event: CalendarEvent) {
   }
 }
 
+// Time picker helpers
+const timeHours = Array.from({ length: 12 }, (_, i) => i + 1)
+const timeMinutes = Array.from({ length: 12 }, (_, i) => i * 5)
+
+function getTimeParts(time: string) {
+  if (!time) return { hour: 12, minute: 0, period: 'AM' as 'AM' | 'PM' }
+  const [h, m] = time.split(':').map(Number)
+  // Snap minute to nearest 5
+  const snapped = Math.round(m / 5) * 5
+  return {
+    hour: h % 12 || 12,
+    minute: snapped >= 60 ? 0 : snapped,
+    period: (h >= 12 ? 'PM' : 'AM') as 'AM' | 'PM'
+  }
+}
+
+function setTimePart(field: 'time' | 'end_time', part: 'hour' | 'minute' | 'period', value: number | string) {
+  const parts = getTimeParts(eventForm.value[field])
+  if (part === 'hour') parts.hour = value as number
+  else if (part === 'minute') parts.minute = value as number
+  else parts.period = value as 'AM' | 'PM'
+  let h24 = parts.hour % 12
+  if (parts.period === 'PM') h24 += 12
+  eventForm.value[field] = `${String(h24).padStart(2, '0')}:${String(parts.minute).padStart(2, '0')}`
+}
+
 function formatTime(time: string): string {
   const [hours, minutes] = time.split(':').map(Number)
   const period = hours >= 12 ? 'pm' : 'am'
@@ -341,11 +367,15 @@ function getEventsForDay(dateStr: string) {
     const endDate = event.end_date || event.date
     return dateStr >= startDate && dateStr <= endDate
   }).sort((a, b) => {
-    // All-day events first, then by time
-    if (a.all_day && !b.all_day) return -1
-    if (!a.all_day && b.all_day) return 1
+    // All-day events always first
+    const aAllDay = a.all_day || !a.time
+    const bAllDay = b.all_day || !b.time
+    if (aAllDay && !bAllDay) return -1
+    if (!aAllDay && bAllDay) return 1
+    // Both timed — sort by time
     if (a.time && b.time) return a.time.localeCompare(b.time)
-    return 0
+    // Both all-day — sort by title
+    return a.title.localeCompare(b.title)
   })
 }
 
@@ -1116,22 +1146,60 @@ const refresh = () => window.location.reload()
             </div>
           </div>
 
-          <div v-if="!eventForm.all_day" class="grid grid-cols-2 gap-3">
+          <div v-if="!eventForm.all_day" class="space-y-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Time</label>
-              <input
-                v-model="eventForm.time"
-                type="time"
-                class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              />
+              <div class="flex gap-2">
+                <select
+                  :value="getTimeParts(eventForm.time).hour"
+                  @change="setTimePart('time', 'hour', +($event.target as HTMLSelectElement).value)"
+                  class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+                >
+                  <option v-for="h in timeHours" :key="h" :value="h">{{ h }}</option>
+                </select>
+                <select
+                  :value="getTimeParts(eventForm.time).minute"
+                  @change="setTimePart('time', 'minute', +($event.target as HTMLSelectElement).value)"
+                  class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+                >
+                  <option v-for="m in timeMinutes" :key="m" :value="m">:{{ String(m).padStart(2, '0') }}</option>
+                </select>
+                <select
+                  :value="getTimeParts(eventForm.time).period"
+                  @change="setTimePart('time', 'period', ($event.target as HTMLSelectElement).value)"
+                  class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+                >
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
+              </div>
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Time <span class="font-normal text-gray-400">(optional)</span></label>
-              <input
-                v-model="eventForm.end_time"
-                type="time"
-                class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              />
+              <div class="flex gap-2">
+                <select
+                  :value="getTimeParts(eventForm.end_time).hour"
+                  @change="setTimePart('end_time', 'hour', +($event.target as HTMLSelectElement).value)"
+                  class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+                >
+                  <option v-for="h in timeHours" :key="h" :value="h">{{ h }}</option>
+                </select>
+                <select
+                  :value="getTimeParts(eventForm.end_time).minute"
+                  @change="setTimePart('end_time', 'minute', +($event.target as HTMLSelectElement).value)"
+                  class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+                >
+                  <option v-for="m in timeMinutes" :key="m" :value="m">:{{ String(m).padStart(2, '0') }}</option>
+                </select>
+                <select
+                  :value="getTimeParts(eventForm.end_time).period"
+                  @change="setTimePart('end_time', 'period', ($event.target as HTMLSelectElement).value)"
+                  class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+                >
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
+              </div>
             </div>
           </div>
 

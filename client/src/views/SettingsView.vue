@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useCalendarStore } from '@/stores/calendar'
 import { useAuthStore } from '@/stores/auth'
+import { supabase } from '@/lib/supabase'
 
 const calendarStore = useCalendarStore()
 const authStore = useAuthStore()
@@ -129,6 +130,37 @@ async function testAccount(id: number) {
     accountTestResults.value.set(id, result)
   } finally {
     accountTesting.value.delete(id)
+  }
+}
+
+// Set password
+const newPassword = ref('')
+const confirmPassword = ref('')
+const passwordMessage = ref('')
+const passwordError = ref('')
+const passwordLoading = ref(false)
+
+async function handleSetPassword() {
+  passwordError.value = ''
+  passwordMessage.value = ''
+  if (!newPassword.value || newPassword.value.length < 6) {
+    passwordError.value = 'Password must be at least 6 characters'
+    return
+  }
+  if (newPassword.value !== confirmPassword.value) {
+    passwordError.value = 'Passwords do not match'
+    return
+  }
+  passwordLoading.value = true
+  const { error } = await supabase.auth.updateUser({ password: newPassword.value })
+  passwordLoading.value = false
+  if (error) {
+    passwordError.value = error.message
+  } else {
+    passwordMessage.value = 'Password set successfully!'
+    newPassword.value = ''
+    confirmPassword.value = ''
+    setTimeout(() => { passwordMessage.value = '' }, 3000)
   }
 }
 
@@ -476,6 +508,46 @@ const refresh = () => window.location.reload()
           <p class="text-sm text-blue-800 dark:text-blue-200">
             Each account needs an <a href="https://support.apple.com/en-us/102654" target="_blank" class="underline">app-specific password</a> generated from the Apple ID settings page. The regular Apple ID password won't work.
           </p>
+        </div>
+      </div>
+
+      <!-- Set Password -->
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Set Password</h2>
+        <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">
+          Add or change a password for your account. Useful for signing in on devices that don't support Google sign-in.
+        </p>
+
+        <p v-if="passwordError" class="text-sm text-red-600 dark:text-red-400 mb-3">{{ passwordError }}</p>
+        <p v-if="passwordMessage" class="text-sm text-emerald-600 dark:text-emerald-400 mb-3">{{ passwordMessage }}</p>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">New Password</label>
+            <input
+              v-model="newPassword"
+              type="password"
+              class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+              placeholder="At least 6 characters"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Confirm Password</label>
+            <input
+              v-model="confirmPassword"
+              type="password"
+              class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+              placeholder="Re-enter password"
+              @keyup.enter="handleSetPassword"
+            />
+          </div>
+          <button
+            @click="handleSetPassword"
+            :disabled="!newPassword || !confirmPassword || passwordLoading"
+            class="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {{ passwordLoading ? 'Saving...' : 'Set Password' }}
+          </button>
         </div>
       </div>
     </div>

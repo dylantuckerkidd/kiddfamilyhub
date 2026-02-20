@@ -259,18 +259,6 @@ export async function initDb(): Promise<Database> {
     db.run(`ALTER TABLE calendar_events ADD COLUMN recurring_group_id TEXT`)
   }
 
-  // Migration: add sync_to_icloud column to calendar_events
-  const hasSyncToIcloud = calCols.length > 0 && calCols[0].values.some((row: any) => row[1] === 'sync_to_icloud')
-  if (!hasSyncToIcloud) {
-    db.run(`ALTER TABLE calendar_events ADD COLUMN sync_to_icloud INTEGER DEFAULT 1`)
-  }
-
-  // Migration: add recurring_group_id column to calendar_events
-  const hasRecurringGroupId = calCols.length > 0 && calCols[0].values.some((row: any) => row[1] === 'recurring_group_id')
-  if (!hasRecurringGroupId) {
-    db.run(`ALTER TABLE calendar_events ADD COLUMN recurring_group_id TEXT`)
-  }
-
   // Migration: add event_type column to calendar_events (e.g. 'birthday')
   const hasEventType = calCols.length > 0 && calCols[0].values.some((row: any) => row[1] === 'event_type')
   if (!hasEventType) {
