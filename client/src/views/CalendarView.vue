@@ -179,6 +179,17 @@ const todosByDate = computed(() => {
   return map
 })
 
+function sortEvents<T extends { event: CalendarEvent }>(entries: T[]): T[] {
+  return entries.sort((a, b) => {
+    const aAllDay = a.event.all_day || !a.event.time
+    const bAllDay = b.event.all_day || !b.event.time
+    if (aAllDay && !bAllDay) return -1
+    if (!aAllDay && bAllDay) return 1
+    if (a.event.time && b.event.time) return a.event.time.localeCompare(b.event.time)
+    return a.event.title.localeCompare(b.event.title)
+  })
+}
+
 const eventsByDate = computed(() => {
   const map = new Map<string, { event: CalendarEvent; isStart: boolean; isEnd: boolean; isMid: boolean }[]>()
 
@@ -201,6 +212,12 @@ const eventsByDate = computed(() => {
       current.setDate(current.getDate() + 1)
     }
   }
+
+  // Sort each day's events: all-day first, then by time
+  for (const [key, entries] of map) {
+    map.set(key, sortEvents(entries))
+  }
+
   return map
 })
 
