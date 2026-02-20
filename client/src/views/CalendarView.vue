@@ -617,9 +617,6 @@ const refresh = () => window.location.reload()
       </button>
     </div>
 
-    <!-- Weather Widget -->
-    <WeatherWidget />
-
     <!-- Calendar -->
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
       <!-- Loading State -->
@@ -1014,6 +1011,9 @@ const refresh = () => window.location.reload()
       </template>
       </template>
     </div>
+
+    <!-- Weather Widget -->
+    <WeatherWidget />
 
     <!-- Family Members Legend -->
     <div v-if="store.familyMembers.length > 0" class="flex flex-wrap gap-2 sm:gap-3">
