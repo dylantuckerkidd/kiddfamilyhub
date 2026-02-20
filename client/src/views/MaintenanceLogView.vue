@@ -413,7 +413,7 @@ const refresh = () => window.location.reload()
     <!-- Add/Edit Modal -->
     <div
       v-if="showAddModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
       @click.self="showAddModal = false"
     >
       <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
@@ -539,10 +539,10 @@ const refresh = () => window.location.reload()
     <!-- Complete Modal -->
     <div
       v-if="showCompleteModal && completingItem"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
       @click.self="showCompleteModal = false"
     >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 my-auto max-h-[90vh] overflow-y-auto">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">
           Mark Complete
         </h3>

@@ -1030,10 +1030,10 @@ const refresh = () => window.location.reload()
     <!-- Event Modal -->
     <div
       v-if="showEventModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
       @click.self="showEventModal = false"
     >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 my-auto max-h-[90vh] overflow-y-auto">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           {{ editingEvent ? (eventForm.is_birthday ? 'Edit Birthday' : 'Edit Event') : (eventForm.is_birthday ? 'Add Birthday' : 'Add Event') }}
         </h3>
@@ -1325,10 +1325,10 @@ const refresh = () => window.location.reload()
     <!-- People Modal -->
     <div
       v-if="showPersonModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
       @click.self="showPersonModal = false"
     >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 my-auto max-h-[90vh] overflow-y-auto">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Manage Family Members</h3>
 
         <!-- Existing members -->

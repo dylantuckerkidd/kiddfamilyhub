@@ -726,10 +726,10 @@ const refresh = () => window.location.reload()
     <!-- Bulk Delete Confirm Modal -->
     <div
       v-if="showBulkConfirmDelete"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 overflow-y-auto"
       @click.self="showBulkConfirmDelete = false"
     >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-6">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-6 my-auto max-h-[90vh] overflow-y-auto">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Delete {{ store.selectedIds.size }} tasks?</h3>
         <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">This action cannot be undone.</p>
         <div class="flex gap-3">
@@ -752,7 +752,7 @@ const refresh = () => window.location.reload()
     <!-- Edit/Add Modal -->
     <div
       v-if="showEditModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
       @click.self="showEditModal = false"
     >
       <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
@@ -938,10 +938,10 @@ const refresh = () => window.location.reload()
     <!-- Categories Modal -->
     <div
       v-if="showCategoryModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
       @click.self="showCategoryModal = false"
     >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 my-auto max-h-[90vh] overflow-y-auto">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Manage Categories</h3>
 
         <!-- Existing categories -->
@@ -1019,10 +1019,10 @@ const refresh = () => window.location.reload()
     <!-- People Modal -->
     <div
       v-if="showPersonModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
       @click.self="showPersonModal = false"
     >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 my-auto max-h-[90vh] overflow-y-auto">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Manage Family Members</h3>
 
         <!-- Existing members -->

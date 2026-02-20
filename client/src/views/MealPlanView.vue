@@ -630,7 +630,7 @@ const refresh = () => window.location.reload()
     <!-- ==================== MEAL ENTRY MODAL ==================== -->
     <div
       v-if="showMealModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
       @click.self="showMealModal = false"
     >
       <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
@@ -771,7 +771,7 @@ const refresh = () => window.location.reload()
     <!-- ==================== RECIPE ADD/EDIT MODAL ==================== -->
     <div
       v-if="showRecipeModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
       @click.self="showRecipeModal = false"
     >
       <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
