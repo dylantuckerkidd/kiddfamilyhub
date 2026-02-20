@@ -3,17 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:client": "npm -w client run dev",
-    "dev:server": "npm -w server run dev",
-    "build": "npm -w client run build && npm -w server run build",
-    "start": "npm -w server run start"
+    "dev": "npm -w client run dev",
+    "build": "npm -w client run build",
+    "preview": "npm -w client run preview"
   },
   "workspaces": [
-    "client",
-    "server"
-  ],
-  "devDependencies": {
-    "concurrently": "^8.2.2"
-  }
+    "client"
+  ]
 }
