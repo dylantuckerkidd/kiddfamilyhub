@@ -4,6 +4,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useBudgetStore } from '@/stores/budget'
 import SpendingByCategory from '@/components/SpendingByCategory.vue'
 import SpendingOverTime from '@/components/SpendingOverTime.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 const store = useBudgetStore()
 
@@ -102,36 +103,28 @@ function formatCurrency(amount: number): string {
     currency: 'USD'
   }).format(amount)
 }
-
-const refresh = () => window.location.reload()
 </script>
 
 <template>
   <div class="space-y-8">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div>
-        <div class="flex items-center gap-2">
-          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Analytics</h1>
-          <button @click="refresh" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Refresh"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>
+    <PageHeader title="Analytics" subtitle="Visualize your spending patterns">
+      <template #actions>
+        <div v-if="availableMonths.length > 0">
+          <select
+            v-model="selectedMonth"
+            class="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+          >
+            <option v-for="month in availableMonths" :key="month" :value="month">
+              {{ formatMonthOption(month) }}
+            </option>
+          </select>
         </div>
-        <p class="text-gray-500 dark:text-gray-400 mt-1">Visualize your spending patterns</p>
-      </div>
-
-      <div v-if="availableMonths.length > 0">
-        <select
-          v-model="selectedMonth"
-          class="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-        >
-          <option v-for="month in availableMonths" :key="month" :value="month">
-            {{ formatMonthOption(month) }}
-          </option>
-        </select>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <!-- Monthly Income -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+      <div class="card p-5">
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
             <svg class="w-6 h-6 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -146,7 +139,7 @@ const refresh = () => window.location.reload()
       </div>
 
       <!-- Monthly Expenses -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+      <div class="card p-5">
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
             <svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -161,7 +154,7 @@ const refresh = () => window.location.reload()
       </div>
 
       <!-- Monthly Net -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+      <div class="card p-5">
         <div class="flex items-center gap-4">
           <div
             class="w-12 h-12 rounded-xl flex items-center justify-center"
@@ -190,7 +183,7 @@ const refresh = () => window.location.reload()
       </div>
 
       <!-- Avg Daily Spend -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+      <div class="card p-5">
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
             <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

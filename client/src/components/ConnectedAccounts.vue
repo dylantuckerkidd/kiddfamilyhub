@@ -15,8 +15,8 @@ function formatDate(dateStr: string): string {
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-    <div v-if="store.plaidItems.length > 0" class="divide-y divide-gray-100 dark:divide-gray-700">
+  <div class="card overflow-hidden">
+    <div v-if="store.plaidItems.length > 0" class="list-divider">
       <div
         v-for="item in store.plaidItems"
         :key="item.item_id"

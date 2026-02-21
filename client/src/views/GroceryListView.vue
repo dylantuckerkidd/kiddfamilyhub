@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useGroceryStore, type GroceryItem } from '@/stores/grocery'
+import PageHeader from '@/components/PageHeader.vue'
+import BaseModal from '@/components/BaseModal.vue'
+import LoadingSpinner from '@/components/LoadingSpinner.vue'
+import FormInput from '@/components/FormInput.vue'
+import FormActions from '@/components/FormActions.vue'
 
 const store = useGroceryStore()
 
@@ -123,33 +128,25 @@ async function deleteItem() {
 onMounted(() => {
   store.fetchItems()
 })
-
-const refresh = () => window.location.reload()
 </script>
 
 <template>
   <div class="space-y-4 sm:space-y-6">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div>
-        <div class="flex items-center gap-2">
-          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Grocery List</h1>
-          <button @click="refresh" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Refresh"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>
-        </div>
-        <p class="text-gray-500 dark:text-gray-400 mt-1">Keep track of what you need</p>
-      </div>
-
-      <button
-        v-if="store.checkedItems.length > 0"
-        @click="store.clearChecked"
-        class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium transition-colors"
-      >
-        Clear Checked ({{ store.checkedItems.length }})
-      </button>
-    </div>
+    <PageHeader title="Grocery List" subtitle="Keep track of what you need">
+      <template #actions>
+        <button
+          v-if="store.checkedItems.length > 0"
+          @click="store.clearChecked"
+          class="btn-secondary"
+        >
+          Clear Checked ({{ store.checkedItems.length }})
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Add Item -->
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+    <div class="card p-4">
       <form @submit.prevent="addItem" class="flex gap-3">
         <div class="flex-1 relative">
           <input
@@ -161,7 +158,7 @@ const refresh = () => window.location.reload()
             type="text"
             placeholder="Add an item..."
             autocomplete="off"
-            class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+            class="form-input"
           />
           <ul
             v-if="showSuggestions && suggestions.length > 0"
@@ -191,7 +188,7 @@ const refresh = () => window.location.reload()
         <button
           type="submit"
           :disabled="!newItemName.trim()"
-          class="px-6 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="btn-primary px-6"
         >
           Add
         </button>
@@ -199,24 +196,21 @@ const refresh = () => window.location.reload()
     </div>
 
     <!-- Items List -->
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+    <div class="card overflow-hidden">
       <!-- Loading State -->
       <div v-if="store.loading && !store.initialized" class="p-8">
-        <div class="flex flex-col items-center justify-center gap-3">
-          <div class="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-          <span class="text-gray-500 dark:text-gray-400 text-sm">Loading...</span>
-        </div>
+        <LoadingSpinner />
       </div>
 
       <!-- Unchecked Items (grouped by category) -->
       <div v-else-if="store.uncheckedItems.length > 0">
         <div v-for="group in store.groupedUncheckedItems" :key="group.category">
-          <div class="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700">
-            <span class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          <div class="list-group-header">
+            <span class="list-group-label">
               {{ group.category }}
             </span>
           </div>
-          <div class="divide-y divide-gray-100 dark:divide-gray-700">
+          <div class="list-divider">
             <div
               v-for="item in group.items"
               :key="item.id"
@@ -224,7 +218,7 @@ const refresh = () => window.location.reload()
             >
               <button
                 @click="store.toggleItem(item.id)"
-                class="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 hover:border-emerald-500 dark:hover:border-emerald-500 transition-colors flex-shrink-0"
+                class="w-8 h-8 sm:w-6 sm:h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 hover:border-emerald-500 dark:hover:border-emerald-500 transition-colors flex-shrink-0"
               ></button>
 
               <div class="flex-1 min-w-0" @click="openEditModal(item)">
@@ -241,8 +235,8 @@ const refresh = () => window.location.reload()
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="store.checkedItems.length === 0" class="p-12 text-center">
-        <svg class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div v-else-if="store.checkedItems.length === 0" class="p-8 sm:p-12 text-center">
+        <svg class="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
         </svg>
         <p class="text-gray-500 dark:text-gray-400">Your grocery list is empty</p>
@@ -256,7 +250,7 @@ const refresh = () => window.location.reload()
             Checked ({{ store.checkedItems.length }})
           </span>
         </div>
-        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+        <div class="list-divider">
           <div
             v-for="item in store.checkedItems"
             :key="item.id"
@@ -264,7 +258,7 @@ const refresh = () => window.location.reload()
           >
             <button
               @click="store.toggleItem(item.id)"
-              class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0"
+              class="w-8 h-8 sm:w-6 sm:h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0"
             >
               <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -285,83 +279,53 @@ const refresh = () => window.location.reload()
     </div>
 
     <!-- Edit Modal -->
-    <div
-      v-if="showEditModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
-      @click.self="showEditModal = false"
-    >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 my-auto max-h-[90vh] overflow-y-auto">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Edit Item</h3>
+    <BaseModal :show="showEditModal" @close="showEditModal = false">
+      <h3 class="modal-title">Edit Item</h3>
 
-        <form @submit.prevent="saveEdit" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-            <input
-              v-model="editForm.name"
-              type="text"
-              required
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-            />
-          </div>
+      <form @submit.prevent="saveEdit" class="space-y-4">
+        <FormInput v-model="editForm.name" label="Name" type="text" required />
 
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Quantity</label>
-              <input
-                v-model.number="editForm.quantity"
-                type="number"
-                step="any"
-                class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-                placeholder="1"
-              />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Unit</label>
-              <input
-                v-model="editForm.unit"
-                type="text"
-                class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-                placeholder="lbs, oz, etc."
-              />
-            </div>
-          </div>
+        <div class="grid grid-cols-2 gap-3">
+          <FormInput v-model.number="editForm.quantity" label="Quantity" type="number" step="any" placeholder="1" />
+          <FormInput v-model="editForm.unit" label="Unit" type="text" placeholder="lbs, oz, etc." />
+        </div>
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
-            <select
-              v-model="editForm.category"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-            >
-              <option value="">No category</option>
-              <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
-            </select>
-          </div>
+        <div>
+          <label class="form-label">Category</label>
+          <select
+            v-model="editForm.category"
+            class="form-input"
+          >
+            <option value="">No category</option>
+            <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
+          </select>
+        </div>
 
-          <div class="flex gap-3 pt-2">
+        <FormActions>
+          <template #left>
             <button
               type="button"
               @click="deleteItem"
-              class="px-4 py-2.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+              class="btn-danger"
             >
               Delete
             </button>
-            <div class="flex-1"></div>
-            <button
-              type="button"
-              @click="showEditModal = false"
-              class="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              class="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
-            >
-              Save
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          </template>
+          <button
+            type="button"
+            @click="showEditModal = false"
+            class="btn-secondary"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="btn-primary"
+          >
+            Save
+          </button>
+        </FormActions>
+      </form>
+    </BaseModal>
   </div>
 </template>

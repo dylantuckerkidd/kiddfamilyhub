@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useCalendarStore } from '@/stores/calendar'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/lib/supabase'
+import PageHeader from '@/components/PageHeader.vue'
 
 const calendarStore = useCalendarStore()
 const authStore = useAuthStore()
@@ -163,23 +164,15 @@ async function handleSetPassword() {
     setTimeout(() => { passwordMessage.value = '' }, 3000)
   }
 }
-
-const refresh = () => window.location.reload()
 </script>
 
 <template>
   <div class="space-y-8">
-    <div>
-      <div class="flex items-center gap-2">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
-        <button @click="refresh" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Refresh"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>
-      </div>
-      <p class="text-gray-500 dark:text-gray-400 mt-1">Manage your account and connected services</p>
-    </div>
+    <PageHeader title="Settings" subtitle="Manage your account and connected services" />
 
     <div class="space-y-6">
       <!-- Family Sharing -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+      <div class="card p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Family Sharing</h2>
 
         <!-- Error display -->
@@ -192,7 +185,7 @@ const refresh = () => window.location.reload()
           </p>
 
           <!-- Create family -->
-          <div v-if="showCreateFamily" class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl space-y-3 mb-3">
+          <div v-if="showCreateFamily" class="settings-panel mb-3">
             <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Create a Family</h3>
             <div>
               <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Family Name</label>
@@ -222,7 +215,7 @@ const refresh = () => window.location.reload()
           </div>
 
           <!-- Join family -->
-          <div v-else-if="showJoinFamily" class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl space-y-3 mb-3">
+          <div v-else-if="showJoinFamily" class="settings-panel mb-3">
             <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Join a Family</h3>
             <div>
               <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Invite Code</label>
@@ -366,7 +359,7 @@ const refresh = () => window.location.reload()
       </div>
 
       <!-- iCloud Calendar Sync -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+      <div class="card p-6">
         <div class="flex items-center justify-between mb-2">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-white">iCloud Calendar Sync</h2>
           <button
@@ -453,7 +446,7 @@ const refresh = () => window.location.reload()
         </div>
 
         <!-- Add/Edit Account Form -->
-        <div v-if="showAccountForm" class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl space-y-3 mb-4">
+        <div v-if="showAccountForm" class="settings-panel mb-4">
           <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
             {{ editingAccountId ? 'Edit Account' : 'Add iCloud Account' }}
           </h3>
@@ -512,7 +505,7 @@ const refresh = () => window.location.reload()
       </div>
 
       <!-- Set Password -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+      <div class="card p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Set Password</h2>
         <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">
           Add or change a password for your account. Useful for signing in on devices that don't support Google sign-in.

@@ -2,6 +2,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useMaintenanceStore, type MaintenanceItem, type MaintenanceHistoryEntry } from '@/stores/maintenance'
 import { useCalendarStore } from '@/stores/calendar'
+import PageHeader from '@/components/PageHeader.vue'
+import BaseModal from '@/components/BaseModal.vue'
+import LoadingSpinner from '@/components/LoadingSpinner.vue'
+import FormInput from '@/components/FormInput.vue'
+import FormTextarea from '@/components/FormTextarea.vue'
+import FormActions from '@/components/FormActions.vue'
 
 const store = useMaintenanceStore()
 const calendarStore = useCalendarStore()
@@ -199,28 +205,21 @@ onMounted(async () => {
     calendarStore.fetchFamilyMembers(),
   ])
 })
-
-const refresh = () => window.location.reload()
 </script>
 
 <template>
   <div class="space-y-4 sm:space-y-6">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div>
-        <div class="flex items-center gap-2">
-          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Home Maintenance</h1>
-          <button @click="refresh" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Refresh"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>
-        </div>
-        <p class="text-gray-500 dark:text-gray-400 mt-1">Track recurring household tasks</p>
-      </div>
-      <button
-        @click="openAddModal"
-        class="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
-      >
-        + Add Task
-      </button>
-    </div>
+    <PageHeader title="Home Maintenance" subtitle="Track recurring household tasks">
+      <template #actions>
+        <button
+          @click="openAddModal"
+          class="btn-primary"
+        >
+          + Add Task
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Status Bar -->
     <div class="flex flex-wrap gap-3">
@@ -261,19 +260,16 @@ const refresh = () => window.location.reload()
     </div>
 
     <!-- Loading State -->
-    <div v-if="store.loading && !store.initialized" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8">
-      <div class="flex flex-col items-center justify-center gap-3">
-        <div class="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-        <span class="text-gray-500 dark:text-gray-400 text-sm">Loading...</span>
-      </div>
+    <div v-if="store.loading && !store.initialized" class="card p-8">
+      <LoadingSpinner />
     </div>
 
     <!-- Empty State -->
     <div
       v-else-if="store.items.length === 0"
-      class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-12 text-center"
+      class="card p-8 sm:p-12 text-center"
     >
-      <svg class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg class="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085" />
       </svg>
       <p class="text-gray-500 dark:text-gray-400 font-medium">No maintenance tasks yet</p>
@@ -285,17 +281,17 @@ const refresh = () => window.location.reload()
       <div
         v-for="group in filteredGrouped"
         :key="group.category"
-        class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden"
+        class="card overflow-hidden"
       >
         <!-- Category Header -->
-        <div class="px-4 py-2.5 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700">
-          <span class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+        <div class="list-group-header">
+          <span class="list-group-label">
             {{ group.icon }} {{ group.category }}
           </span>
         </div>
 
         <!-- Items -->
-        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+        <div class="list-divider">
           <div v-for="item in group.items" :key="item.id">
             <div class="flex items-start gap-3 px-3 sm:px-4 py-3 sm:py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
               <!-- Complete button -->
@@ -372,7 +368,7 @@ const refresh = () => window.location.reload()
               v-if="expandedItemId === item.id && expandedHistory[item.id]"
               class="bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 px-4 py-3"
             >
-              <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+              <h4 class="list-group-label mb-2">
                 Completion History
               </h4>
               <div v-if="expandedHistory[item.id].length === 0" class="text-sm text-gray-400 dark:text-gray-500">
@@ -404,213 +400,142 @@ const refresh = () => window.location.reload()
       <!-- No results after filtering -->
       <div
         v-if="filteredGrouped.length === 0 && store.items.length > 0"
-        class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 text-center"
+        class="card p-8 text-center"
       >
         <p class="text-gray-500 dark:text-gray-400">No tasks match the selected filters</p>
       </div>
     </div>
 
     <!-- Add/Edit Modal -->
-    <div
-      v-if="showAddModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
-      @click.self="showAddModal = false"
-    >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          {{ editingItem ? 'Edit Task' : 'Add Task' }}
-        </h3>
+    <BaseModal :show="showAddModal" @close="showAddModal = false">
+      <h3 class="modal-title">
+        {{ editingItem ? 'Edit Task' : 'Add Task' }}
+      </h3>
 
-        <form @submit.prevent="saveItem" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
-            <input
-              v-model="itemForm.title"
-              type="text"
-              required
-              placeholder="e.g. Replace HVAC filter"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-            />
-          </div>
+      <form @submit.prevent="saveItem" class="space-y-4">
+        <FormInput v-model="itemForm.title" label="Title" type="text" required placeholder="e.g. Replace HVAC filter" />
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-            <textarea
-              v-model="itemForm.description"
-              rows="2"
-              placeholder="Optional notes..."
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white resize-none"
-            />
-          </div>
+        <FormTextarea v-model="itemForm.description" label="Description" rows="2" placeholder="Optional notes..." />
 
+        <div>
+          <label class="form-label">Category</label>
+          <select
+            v-model="itemForm.category_id"
+            class="form-input"
+          >
+            <option :value="null">No category</option>
+            <option v-for="cat in store.categories" :key="cat.id" :value="cat.id">
+              {{ cat.icon }} {{ cat.name }}
+            </option>
+          </select>
+        </div>
+
+        <div>
+          <label class="form-label">Assigned To</label>
+          <select
+            v-model="itemForm.person_id"
+            class="form-input"
+          >
+            <option :value="null">Unassigned</option>
+            <option v-for="member in calendarStore.familyMembers" :key="member.id" :value="member.id">
+              {{ member.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+            <label class="form-label">Frequency</label>
             <select
-              v-model="itemForm.category_id"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+              v-model="itemForm.frequency"
+              class="form-input"
             >
-              <option :value="null">No category</option>
-              <option v-for="cat in store.categories" :key="cat.id" :value="cat.id">
-                {{ cat.icon }} {{ cat.name }}
-              </option>
+              <option v-for="f in frequencies" :key="f.value" :value="f.value">{{ f.label }}</option>
             </select>
           </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assigned To</label>
-            <select
-              v-model="itemForm.person_id"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-            >
-              <option :value="null">Unassigned</option>
-              <option v-for="member in calendarStore.familyMembers" :key="member.id" :value="member.id">
-                {{ member.name }}
-              </option>
-            </select>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Frequency</label>
-              <select
-                v-model="itemForm.frequency"
-                class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              >
-                <option v-for="f in frequencies" :key="f.value" :value="f.value">{{ f.label }}</option>
-              </select>
-            </div>
-            <div v-if="itemForm.frequency === 'custom'">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Days</label>
-              <input
-                v-model.number="itemForm.frequency_days"
-                type="number"
-                min="1"
-                placeholder="e.g. 45"
-                class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              />
-            </div>
-            <div v-else>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Next Due</label>
-              <input
-                v-model="itemForm.next_due_date"
-                type="date"
-                class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              />
-            </div>
-          </div>
-
           <div v-if="itemForm.frequency === 'custom'">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Next Due Date</label>
-            <input
-              v-model="itemForm.next_due_date"
-              type="date"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-            />
+            <FormInput v-model.number="itemForm.frequency_days" label="Days" type="number" min="1" placeholder="e.g. 45" />
           </div>
+          <div v-else>
+            <FormInput v-model="itemForm.next_due_date" label="Next Due" type="date" />
+          </div>
+        </div>
 
-          <div class="flex gap-3 pt-2">
+        <div v-if="itemForm.frequency === 'custom'">
+          <FormInput v-model="itemForm.next_due_date" label="Next Due Date" type="date" />
+        </div>
+
+        <FormActions>
+          <template #left>
             <button
               v-if="editingItem"
               type="button"
               @click="deleteItem"
-              class="px-4 py-2.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+              class="btn-danger"
             >
               Delete
             </button>
-            <div class="flex-1"></div>
-            <button
-              type="button"
-              @click="showAddModal = false"
-              class="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              class="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
-            >
-              {{ editingItem ? 'Save' : 'Add' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          </template>
+          <button
+            type="button"
+            @click="showAddModal = false"
+            class="btn-secondary"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="btn-primary"
+          >
+            {{ editingItem ? 'Save' : 'Add' }}
+          </button>
+        </FormActions>
+      </form>
+    </BaseModal>
 
     <!-- Complete Modal -->
-    <div
-      v-if="showCompleteModal && completingItem"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
-      @click.self="showCompleteModal = false"
-    >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 my-auto max-h-[90vh] overflow-y-auto">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-          Mark Complete
-        </h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ completingItem.title }}</p>
+    <BaseModal :show="showCompleteModal && !!completingItem" @close="showCompleteModal = false">
+      <h3 class="modal-title mb-1">
+        Mark Complete
+      </h3>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ completingItem?.title }}</p>
 
-        <form @submit.prevent="confirmComplete" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Completed Date</label>
-            <input
-              v-model="completeForm.completed_date"
-              type="date"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-            />
-          </div>
+      <form @submit.prevent="confirmComplete" class="space-y-4">
+        <FormInput v-model="completeForm.completed_date" label="Completed Date" type="date" />
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Completed By</label>
-            <select
-              v-model="completeForm.person_id"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-            >
-              <option :value="null">Unspecified</option>
-              <option v-for="member in calendarStore.familyMembers" :key="member.id" :value="member.id">
-                {{ member.name }}
-              </option>
-            </select>
-          </div>
+        <div>
+          <label class="form-label">Completed By</label>
+          <select
+            v-model="completeForm.person_id"
+            class="form-input"
+          >
+            <option :value="null">Unspecified</option>
+            <option v-for="member in calendarStore.familyMembers" :key="member.id" :value="member.id">
+              {{ member.name }}
+            </option>
+          </select>
+        </div>
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cost (optional)</label>
-            <input
-              v-model.number="completeForm.cost"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0.00"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-            />
-          </div>
+        <FormInput v-model.number="completeForm.cost" label="Cost (optional)" type="number" step="0.01" min="0" placeholder="0.00" />
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes (optional)</label>
-            <textarea
-              v-model="completeForm.notes"
-              rows="2"
-              placeholder="Any notes about this completion..."
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white resize-none"
-            />
-          </div>
+        <FormTextarea v-model="completeForm.notes" label="Notes (optional)" rows="2" placeholder="Any notes about this completion..." />
 
-          <div class="flex gap-3 pt-2">
-            <div class="flex-1"></div>
-            <button
-              type="button"
-              @click="showCompleteModal = false"
-              class="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              class="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
-            >
-              Complete
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <FormActions>
+          <button
+            type="button"
+            @click="showCompleteModal = false"
+            class="btn-secondary"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="btn-primary"
+          >
+            Complete
+          </button>
+        </FormActions>
+      </form>
+    </BaseModal>
   </div>
 </template>

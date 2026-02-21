@@ -96,7 +96,7 @@ function formatCurrency(amount: number): string {
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+  <div class="card p-6">
     <h3 class="font-semibold text-gray-900 dark:text-white mb-4">Spending by Category</h3>
 
     <div v-if="categoryData.length > 0" class="flex flex-col gap-4">
@@ -117,7 +117,7 @@ function formatCurrency(amount: number): string {
           class="flex items-center gap-2 text-sm"
         >
           <span
-            class="w-3 h-3 rounded-full flex-shrink-0"
+            class="color-dot--lg"
             :style="{ backgroundColor: categoryColors[index] }"
           ></span>
           <span class="text-gray-600 dark:text-gray-400 truncate flex-1">{{ category }}</span>

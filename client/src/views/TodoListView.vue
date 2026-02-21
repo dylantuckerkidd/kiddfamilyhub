@@ -4,6 +4,11 @@ import { useTodosStore, type TodoItem, type TodoSubtask } from '@/stores/todos'
 import { useCalendarStore } from '@/stores/calendar'
 import { useGroceryStore } from '@/stores/grocery'
 import { useSortable } from '@/composables/useSortable'
+import PageHeader from '@/components/PageHeader.vue'
+import BaseModal from '@/components/BaseModal.vue'
+import FormInput from '@/components/FormInput.vue'
+import FormTextarea from '@/components/FormTextarea.vue'
+import FormActions from '@/components/FormActions.vue'
 
 const store = useTodosStore()
 const calendarStore = useCalendarStore()
@@ -277,73 +282,62 @@ onMounted(() => {
   store.fetchCategories()
 })
 
-const refresh = () => window.location.reload()
 </script>
 
 <template>
   <div class="space-y-6">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div>
-        <div class="flex items-center gap-2">
-          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-            Todo List
-            <span class="text-base font-normal text-gray-500 dark:text-gray-400 ml-2">
-              {{ store.activeTodos.length }} active<template v-if="store.completedTodos.length">, {{ store.completedTodos.length }} done</template>
-            </span>
-          </h1>
-          <button @click="refresh" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Refresh"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>
+    <PageHeader title="Todo List" :subtitle="`${store.activeTodos.length} active${store.completedTodos.length ? `, ${store.completedTodos.length} done` : ''}`">
+      <template #actions>
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Select Mode Toggle -->
+          <button
+            @click="toggleSelectionMode"
+            class="p-2 rounded-xl transition-colors border text-sm"
+            :class="store.selectionMode
+              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700'
+              : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'"
+            title="Select mode"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </button>
+
+          <!-- Manage Categories -->
+          <button
+            @click="showCategoryModal = true"
+            class="p-2 rounded-xl bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm"
+            title="Manage Categories"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+          </button>
+
+          <button
+            @click="showPersonModal = true"
+            class="btn-primary btn--sm"
+          >
+            Manage People
+          </button>
         </div>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <!-- Select Mode Toggle -->
-        <button
-          @click="toggleSelectionMode"
-          class="p-2 rounded-xl transition-colors border"
-          :class="store.selectionMode
-            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700'
-            : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'"
-          title="Select mode"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-          </svg>
-        </button>
-
-        <!-- Manage Categories -->
-        <button
-          @click="showCategoryModal = true"
-          class="p-2 rounded-xl bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          title="Manage Categories"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
-          </svg>
-        </button>
-
-        <button
-          @click="showPersonModal = true"
-          class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors"
-        >
-          Manage People
-        </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Quick Add Bar -->
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
-      <form @submit.prevent="quickAdd" class="flex gap-3 flex-wrap">
+    <div class="card p-4">
+      <form @submit.prevent="quickAdd" class="flex flex-col sm:flex-row gap-2 sm:gap-3">
         <input
           v-model="quickTitle"
           type="text"
           placeholder="Add a new task..."
-          class="flex-1 min-w-0 px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+          class="flex-1 min-w-0 form-input"
           @keydown.enter.prevent="quickAdd"
         />
         <select
           v-model="quickPersonId"
-          class="px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+          class="form-input w-auto"
         >
           <option :value="null">Unassigned</option>
           <option v-for="person in store.familyMembers" :key="person.id" :value="person.id">
@@ -353,7 +347,7 @@ const refresh = () => window.location.reload()
         <select
           v-if="store.categories.length > 0"
           v-model="quickCategoryId"
-          class="px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+          class="form-input w-auto"
         >
           <option :value="null">No category</option>
           <option v-for="cat in store.categories" :key="cat.id" :value="cat.id">
@@ -363,7 +357,7 @@ const refresh = () => window.location.reload()
         <button
           type="submit"
           :disabled="!quickTitle.trim()"
-          class="px-5 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="btn-primary px-5"
         >
           Add
         </button>
@@ -724,374 +718,310 @@ const refresh = () => window.location.reload()
     </Teleport>
 
     <!-- Bulk Delete Confirm Modal -->
-    <div
-      v-if="showBulkConfirmDelete"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 overflow-y-auto"
-      @click.self="showBulkConfirmDelete = false"
-    >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-6 my-auto max-h-[90vh] overflow-y-auto">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Delete {{ store.selectedIds.size }} tasks?</h3>
-        <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">This action cannot be undone.</p>
-        <div class="flex gap-3">
-          <button
-            @click="showBulkConfirmDelete = false"
-            class="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            @click="bulkDeleteSelected"
-            class="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors"
-          >
-            Delete
-          </button>
-        </div>
+    <BaseModal :show="showBulkConfirmDelete" @close="showBulkConfirmDelete = false" max-width="sm" :z-index="60">
+      <h3 class="modal-title mb-2">Delete {{ store.selectedIds.size }} tasks?</h3>
+      <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">This action cannot be undone.</p>
+      <div class="flex gap-3">
+        <button
+          @click="showBulkConfirmDelete = false"
+          class="flex-1 btn-secondary"
+        >
+          Cancel
+        </button>
+        <button
+          @click="bulkDeleteSelected"
+          class="flex-1 btn-danger-solid"
+        >
+          Delete
+        </button>
       </div>
-    </div>
+    </BaseModal>
 
     <!-- Edit/Add Modal -->
-    <div
-      v-if="showEditModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
-      @click.self="showEditModal = false"
-    >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          {{ editingTodo ? 'Edit Task' : 'Add Task' }}
-        </h3>
+    <BaseModal :show="showEditModal" @close="showEditModal = false">
+      <h3 class="modal-title">
+        {{ editingTodo ? 'Edit Task' : 'Add Task' }}
+      </h3>
 
-        <form @submit.prevent="saveTodo" class="space-y-4">
+      <form @submit.prevent="saveTodo" class="space-y-4">
+        <FormInput v-model="todoForm.title" label="Title" type="text" required placeholder="Task title" />
+        <FormTextarea v-model="todoForm.description" label="Description" :rows="3" placeholder="Optional description" />
+
+        <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
-            <input
-              v-model="todoForm.title"
-              type="text"
-              required
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              placeholder="Task title"
-            />
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-            <textarea
-              v-model="todoForm.description"
-              rows="3"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white resize-none"
-              placeholder="Optional description"
-            ></textarea>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assign to</label>
-              <select
-                v-model="todoForm.person_id"
-                class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              >
-                <option :value="null">Unassigned</option>
-                <option v-for="person in store.familyMembers" :key="person.id" :value="person.id">
-                  {{ person.name }}
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
-              <select
-                v-model="todoForm.category_id"
-                class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              >
-                <option :value="null">No category</option>
-                <option v-for="cat in store.categories" :key="cat.id" :value="cat.id">
-                  {{ cat.name }}
-                </option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Due date</label>
-            <input
-              v-model="todoForm.due_date"
-              type="date"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-            />
-          </div>
-
-          <!-- Add to Grocery List -->
-          <div v-if="editingTodo">
-            <button
-              type="button"
-              @click="addToGrocery"
-              class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-colors"
-              :class="groceryAdded
-                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'"
+            <label class="form-label">Assign to</label>
+            <select
+              v-model="todoForm.person_id"
+              class="form-input"
             >
-              <svg v-if="!groceryAdded" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
-              </svg>
-              <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-              </svg>
-              {{ groceryAdded ? 'Added to Grocery List!' : 'Add to Grocery List' }}
-            </button>
+              <option :value="null">Unassigned</option>
+              <option v-for="person in store.familyMembers" :key="person.id" :value="person.id">
+                {{ person.name }}
+              </option>
+            </select>
           </div>
 
-          <!-- Subtasks Section (edit mode only) -->
-          <div v-if="editingTodo" class="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Subtasks
-              <span v-if="editSubtasks.length > 0" class="font-normal text-gray-400">
-                ({{ editSubtasks.filter(s => s.completed).length }}/{{ editSubtasks.length }})
-              </span>
-            </label>
+          <div>
+            <label class="form-label">Category</label>
+            <select
+              v-model="todoForm.category_id"
+              class="form-input"
+            >
+              <option :value="null">No category</option>
+              <option v-for="cat in store.categories" :key="cat.id" :value="cat.id">
+                {{ cat.name }}
+              </option>
+            </select>
+          </div>
+        </div>
 
-            <!-- Subtask List -->
-            <div ref="subtaskListRef" class="space-y-1 mb-2">
-              <div
-                v-for="subtask in editSubtasks"
-                :key="subtask.id"
-                class="flex items-center gap-2 group py-1"
-              >
-                <button
-                  type="button"
-                  @click="toggleSubtask(subtask)"
-                  class="w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors"
-                  :class="subtask.completed
-                    ? 'bg-emerald-500 border-emerald-500'
-                    : 'border-gray-300 dark:border-gray-600 hover:border-emerald-500'"
-                >
-                  <svg v-if="subtask.completed" class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                  </svg>
-                </button>
-                <span
-                  class="flex-1 text-sm"
-                  :class="subtask.completed
-                    ? 'line-through text-gray-400 dark:text-gray-500'
-                    : 'text-gray-700 dark:text-gray-300'"
-                >
-                  {{ subtask.title }}
-                </span>
-                <button
-                  type="button"
-                  @click="removeSubtask(subtask)"
-                  class="p-1 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
+        <FormInput v-model="todoForm.due_date" label="Due date" type="date" />
 
-            <!-- Add Subtask Input -->
-            <div class="flex gap-2">
-              <input
-                v-model="newSubtaskTitle"
-                type="text"
-                placeholder="Add a subtask..."
-                class="flex-1 px-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-                @keydown.enter.prevent="addSubtask"
-              />
+        <!-- Add to Grocery List -->
+        <div v-if="editingTodo">
+          <button
+            type="button"
+            @click="addToGrocery"
+            class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-colors"
+            :class="groceryAdded
+              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'"
+          >
+            <svg v-if="!groceryAdded" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+            </svg>
+            <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            {{ groceryAdded ? 'Added to Grocery List!' : 'Add to Grocery List' }}
+          </button>
+        </div>
+
+        <!-- Subtasks Section (edit mode only) -->
+        <div v-if="editingTodo" class="border-t border-gray-200 dark:border-gray-700 pt-4">
+          <label class="form-label mb-2">
+            Subtasks
+            <span v-if="editSubtasks.length > 0" class="font-normal text-gray-400">
+              ({{ editSubtasks.filter(s => s.completed).length }}/{{ editSubtasks.length }})
+            </span>
+          </label>
+
+          <!-- Subtask List -->
+          <div ref="subtaskListRef" class="space-y-1 mb-2">
+            <div
+              v-for="subtask in editSubtasks"
+              :key="subtask.id"
+              class="flex items-center gap-2 group py-1"
+            >
               <button
                 type="button"
-                @click="addSubtask"
-                :disabled="!newSubtaskTitle.trim()"
-                class="px-3 py-1.5 text-sm bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                @click="toggleSubtask(subtask)"
+                class="w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors"
+                :class="subtask.completed
+                  ? 'bg-emerald-500 border-emerald-500'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-emerald-500'"
               >
-                Add
+                <svg v-if="subtask.completed" class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+              <span
+                class="flex-1 text-sm"
+                :class="subtask.completed
+                  ? 'line-through text-gray-400 dark:text-gray-500'
+                  : 'text-gray-700 dark:text-gray-300'"
+              >
+                {{ subtask.title }}
+              </span>
+              <button
+                type="button"
+                @click="removeSubtask(subtask)"
+                class="p-1 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
           </div>
 
-          <div class="flex gap-3 pt-2">
+          <!-- Add Subtask Input -->
+          <div class="flex gap-2">
+            <input
+              v-model="newSubtaskTitle"
+              type="text"
+              placeholder="Add a subtask..."
+              class="flex-1 px-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+              @keydown.enter.prevent="addSubtask"
+            />
+            <button
+              type="button"
+              @click="addSubtask"
+              :disabled="!newSubtaskTitle.trim()"
+              class="px-3 py-1.5 text-sm bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+
+        <FormActions>
+          <template #left>
             <button
               v-if="editingTodo"
               type="button"
               @click="deleteTodo"
-              class="px-4 py-2.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+              class="btn-danger"
             >
               Delete
             </button>
-            <div class="flex-1"></div>
-            <button
-              type="button"
-              @click="showEditModal = false"
-              class="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              class="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
-            >
-              {{ editingTodo ? 'Save' : 'Add' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          </template>
+          <button
+            type="button"
+            @click="showEditModal = false"
+            class="btn-secondary"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="btn-primary"
+          >
+            {{ editingTodo ? 'Save' : 'Add' }}
+          </button>
+        </FormActions>
+      </form>
+    </BaseModal>
 
     <!-- Categories Modal -->
-    <div
-      v-if="showCategoryModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
-      @click.self="showCategoryModal = false"
-    >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 my-auto max-h-[90vh] overflow-y-auto">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Manage Categories</h3>
+    <BaseModal :show="showCategoryModal" @close="showCategoryModal = false">
+      <h3 class="modal-title">Manage Categories</h3>
 
-        <!-- Existing categories -->
-        <div v-if="store.categories.length > 0" class="space-y-2 mb-6">
-          <div
-            v-for="cat in store.categories"
-            :key="cat.id"
-            class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-xl"
+      <!-- Existing categories -->
+      <div v-if="store.categories.length > 0" class="space-y-2 mb-6">
+        <div
+          v-for="cat in store.categories"
+          :key="cat.id"
+          class="manage-list-item"
+        >
+          <div class="flex items-center gap-3">
+            <span
+              class="w-4 h-4 rounded-full"
+              :style="{ backgroundColor: cat.color || '#9ca3af' }"
+            ></span>
+            <span class="text-gray-900 dark:text-white">{{ cat.name }}</span>
+          </div>
+          <button
+            @click="removeCategory(cat.id)"
+            class="p-1 text-gray-400 hover:text-red-500 transition-colors"
           >
-            <div class="flex items-center gap-3">
-              <span
-                class="w-4 h-4 rounded-full"
-                :style="{ backgroundColor: cat.color || '#9ca3af' }"
-              ></span>
-              <span class="text-gray-900 dark:text-white">{{ cat.name }}</span>
-            </div>
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Add new category -->
+      <form @submit.prevent="saveCategory" class="space-y-4">
+        <FormInput v-model="categoryForm.name" label="Name" type="text" placeholder="Category name" />
+
+        <div>
+          <label class="form-label mb-2">Color</label>
+          <div class="flex flex-wrap gap-2">
             <button
-              @click="removeCategory(cat.id)"
-              class="p-1 text-gray-400 hover:text-red-500 transition-colors"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
+              v-for="color in personColors"
+              :key="color"
+              type="button"
+              @click="categoryForm.color = color"
+              class="w-8 h-8 rounded-full transition-transform hover:scale-110"
+              :class="categoryForm.color === color ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-offset-gray-800' : ''"
+              :style="{ backgroundColor: color }"
+            ></button>
           </div>
         </div>
 
-        <!-- Add new category -->
-        <form @submit.prevent="saveCategory" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-            <input
-              v-model="categoryForm.name"
-              type="text"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              placeholder="Category name"
-            />
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Color</label>
-            <div class="flex flex-wrap gap-2">
-              <button
-                v-for="color in personColors"
-                :key="color"
-                type="button"
-                @click="categoryForm.color = color"
-                class="w-8 h-8 rounded-full transition-transform hover:scale-110"
-                :class="categoryForm.color === color ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-offset-gray-800' : ''"
-                :style="{ backgroundColor: color }"
-              ></button>
-            </div>
-          </div>
-
-          <div class="flex gap-3 pt-2">
-            <button
-              type="button"
-              @click="showCategoryModal = false"
-              class="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            >
-              Close
-            </button>
-            <button
-              type="submit"
-              :disabled="!categoryForm.name"
-              class="flex-1 px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Add Category
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <FormActions>
+          <button
+            type="button"
+            @click="showCategoryModal = false"
+            class="flex-1 btn-secondary"
+          >
+            Close
+          </button>
+          <button
+            type="submit"
+            :disabled="!categoryForm.name"
+            class="flex-1 btn-primary"
+          >
+            Add Category
+          </button>
+        </FormActions>
+      </form>
+    </BaseModal>
 
     <!-- People Modal -->
-    <div
-      v-if="showPersonModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
-      @click.self="showPersonModal = false"
-    >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 my-auto max-h-[90vh] overflow-y-auto">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Manage Family Members</h3>
+    <BaseModal :show="showPersonModal" @close="showPersonModal = false">
+      <h3 class="modal-title">Manage Family Members</h3>
 
-        <!-- Existing members -->
-        <div v-if="store.familyMembers.length > 0" class="space-y-2 mb-6">
-          <div
-            v-for="person in store.familyMembers"
-            :key="person.id"
-            class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-xl"
+      <!-- Existing members -->
+      <div v-if="store.familyMembers.length > 0" class="space-y-2 mb-6">
+        <div
+          v-for="person in store.familyMembers"
+          :key="person.id"
+          class="manage-list-item"
+        >
+          <div class="flex items-center gap-3">
+            <span class="w-4 h-4 rounded-full" :style="{ backgroundColor: person.color }"></span>
+            <span class="text-gray-900 dark:text-white">{{ person.name }}</span>
+          </div>
+          <button
+            @click="deletePerson(person.id)"
+            class="p-1 text-gray-400 hover:text-red-500 transition-colors"
           >
-            <div class="flex items-center gap-3">
-              <span class="w-4 h-4 rounded-full" :style="{ backgroundColor: person.color }"></span>
-              <span class="text-gray-900 dark:text-white">{{ person.name }}</span>
-            </div>
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Add new member -->
+      <form @submit.prevent="savePerson" class="space-y-4">
+        <FormInput v-model="personForm.name" label="Name" type="text" placeholder="Family member name" />
+
+        <div>
+          <label class="form-label mb-2">Color</label>
+          <div class="flex flex-wrap gap-2">
             <button
-              @click="deletePerson(person.id)"
-              class="p-1 text-gray-400 hover:text-red-500 transition-colors"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
+              v-for="color in personColors"
+              :key="color"
+              type="button"
+              @click="personForm.color = color"
+              class="w-8 h-8 rounded-full transition-transform hover:scale-110"
+              :class="personForm.color === color ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-offset-gray-800' : ''"
+              :style="{ backgroundColor: color }"
+            ></button>
           </div>
         </div>
 
-        <!-- Add new member -->
-        <form @submit.prevent="savePerson" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-            <input
-              v-model="personForm.name"
-              type="text"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              placeholder="Family member name"
-            />
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Color</label>
-            <div class="flex flex-wrap gap-2">
-              <button
-                v-for="color in personColors"
-                :key="color"
-                type="button"
-                @click="personForm.color = color"
-                class="w-8 h-8 rounded-full transition-transform hover:scale-110"
-                :class="personForm.color === color ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-offset-gray-800' : ''"
-                :style="{ backgroundColor: color }"
-              ></button>
-            </div>
-          </div>
-
-          <div class="flex gap-3 pt-2">
-            <button
-              type="button"
-              @click="showPersonModal = false"
-              class="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            >
-              Close
-            </button>
-            <button
-              type="submit"
-              :disabled="!personForm.name"
-              class="flex-1 px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Add Person
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <FormActions>
+          <button
+            type="button"
+            @click="showPersonModal = false"
+            class="flex-1 btn-secondary"
+          >
+            Close
+          </button>
+          <button
+            type="submit"
+            :disabled="!personForm.name"
+            class="flex-1 btn-primary"
+          >
+            Add Person
+          </button>
+        </FormActions>
+      </form>
+    </BaseModal>
   </div>
 </template>

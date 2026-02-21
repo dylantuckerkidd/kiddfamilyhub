@@ -33,7 +33,7 @@ const statusColor = computed(() => {
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow duration-200 group">
+  <div class="card p-5 hover:shadow-md transition-shadow duration-200 group">
     <div class="flex items-start justify-between mb-4">
       <div>
         <h3 class="font-semibold text-gray-900 dark:text-white">{{ budget.category }}</h3>

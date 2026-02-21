@@ -83,7 +83,7 @@ const refresh = () => window.location.reload()
             @delete="store.deleteBudget"
           />
         </div>
-        <div v-else class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <div v-else class="card">
           <EmptyState message="No budgets set up yet" />
         </div>
       </div>

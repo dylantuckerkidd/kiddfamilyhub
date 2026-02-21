@@ -31,7 +31,7 @@ const unmappedPlaidCategories = () =>
 
 <template>
   <div class="space-y-4">
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+    <div class="card p-6">
       <h3 class="font-semibold text-gray-900 dark:text-white mb-2">Category Mappings</h3>
       <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
         Map Plaid categories to your budget categories so imported transactions match your budgets.
@@ -78,11 +78,11 @@ const unmappedPlaidCategories = () =>
       </div>
     </div>
 
-    <div v-if="store.categoryMappings.length > 0" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+    <div v-if="store.categoryMappings.length > 0" class="card overflow-hidden">
       <div class="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700">
         <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">Current Mappings</h4>
       </div>
-      <div class="divide-y divide-gray-100 dark:divide-gray-700">
+      <div class="list-divider">
         <div
           v-for="mapping in store.categoryMappings"
           :key="mapping.id"

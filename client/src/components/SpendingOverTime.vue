@@ -107,7 +107,7 @@ const chartOptions = computed(() => ({
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+  <div class="card p-6">
     <h3 class="font-semibold text-gray-900 dark:text-white mb-4">Daily Breakdown</h3>
 
     <div class="h-64">

@@ -32,7 +32,7 @@ const valueColor = {
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 p-5 border border-gray-100 dark:border-gray-700">
+  <div class="card hover:shadow-md transition-all duration-200 p-5">
     <div class="flex items-center gap-4">
       <div
         class="w-12 h-12 rounded-xl flex items-center justify-center"

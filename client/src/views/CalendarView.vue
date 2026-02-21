@@ -4,6 +4,12 @@ import { useCalendarStore, type CalendarEvent } from '@/stores/calendar'
 import { useTodosStore, type TodoItem } from '@/stores/todos'
 import { useWeatherStore } from '@/stores/weather'
 import WeatherWidget from '@/components/WeatherWidget.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import BaseModal from '@/components/BaseModal.vue'
+import LoadingSpinner from '@/components/LoadingSpinner.vue'
+import FormInput from '@/components/FormInput.vue'
+import FormTextarea from '@/components/FormTextarea.vue'
+import FormActions from '@/components/FormActions.vue'
 
 const store = useCalendarStore()
 const todosStore = useTodosStore()
@@ -594,37 +600,27 @@ watch([currentDate, viewMode], () => {
   fetchEventsForView()
 })
 
-const refresh = () => window.location.reload()
 </script>
 
 <template>
   <div class="space-y-4 sm:space-y-6">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-      <div>
-        <div class="flex items-center gap-2">
-          <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Calendar</h1>
-          <button @click="refresh" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Refresh"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>
-        </div>
-        <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">Family events and schedules</p>
-      </div>
-
-      <button
-        @click="showPersonModal = true"
-        class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors text-sm sm:text-base"
-      >
-        Manage People
-      </button>
-    </div>
+    <PageHeader title="Calendar" subtitle="Family events and schedules">
+      <template #actions>
+        <button
+          @click="showPersonModal = true"
+          class="btn-primary btn--sm sm:text-base"
+        >
+          Manage People
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Calendar -->
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+    <div class="card overflow-hidden">
       <!-- Loading State -->
       <div v-if="store.loading && !store.initialized" class="p-16">
-        <div class="flex flex-col items-center justify-center gap-3">
-          <div class="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-          <span class="text-gray-500 dark:text-gray-400 text-sm">Loading calendar...</span>
-        </div>
+        <LoadingSpinner message="Loading calendar..." />
       </div>
 
       <template v-else>
@@ -633,7 +629,7 @@ const refresh = () => window.location.reload()
         <button
           v-if="viewMode !== 'agenda'"
           @click="prev"
-          class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          class="btn-icon"
         >
           <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -667,25 +663,25 @@ const refresh = () => window.location.reload()
               Today
             </button>
             <!-- View Toggle -->
-            <div class="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <div class="toggle-group">
               <button
                 @click="viewMode = 'week'"
-                class="px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-md transition-colors"
-                :class="viewMode === 'week' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400'"
+                class="toggle-btn px-2 sm:px-3 py-1 text-xs sm:text-sm"
+                :class="viewMode === 'week' ? 'toggle-btn--active' : ''"
               >
                 Week
               </button>
               <button
                 @click="viewMode = 'month'"
-                class="px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-md transition-colors"
-                :class="viewMode === 'month' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400'"
+                class="toggle-btn px-2 sm:px-3 py-1 text-xs sm:text-sm"
+                :class="viewMode === 'month' ? 'toggle-btn--active' : ''"
               >
                 Month
               </button>
               <button
                 @click="viewMode = 'agenda'"
-                class="px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-md transition-colors"
-                :class="viewMode === 'agenda' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400'"
+                class="toggle-btn px-2 sm:px-3 py-1 text-xs sm:text-sm"
+                :class="viewMode === 'agenda' ? 'toggle-btn--active' : ''"
               >
                 <span class="hidden sm:inline">Agenda</span>
                 <span class="sm:hidden">List</span>
@@ -697,7 +693,7 @@ const refresh = () => window.location.reload()
         <button
           v-if="viewMode !== 'agenda'"
           @click="next"
-          class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          class="btn-icon"
         >
           <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -1022,267 +1018,239 @@ const refresh = () => window.location.reload()
         :key="person.id"
         class="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700"
       >
-        <span class="w-3 h-3 rounded-full" :style="{ backgroundColor: person.color }"></span>
+        <span class="color-dot--lg" :style="{ backgroundColor: person.color }"></span>
         <span class="text-sm text-gray-700 dark:text-gray-300">{{ person.name }}</span>
       </div>
     </div>
 
     <!-- Event Modal -->
-    <div
-      v-if="showEventModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
-      @click.self="showEventModal = false"
-    >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 my-auto max-h-[90vh] overflow-y-auto">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          {{ editingEvent ? (eventForm.is_birthday ? 'Edit Birthday' : 'Edit Event') : (eventForm.is_birthday ? 'Add Birthday' : 'Add Event') }}
-        </h3>
+    <BaseModal :show="showEventModal" @close="showEventModal = false">
+      <h3 class="modal-title">
+        {{ editingEvent ? (eventForm.is_birthday ? 'Edit Birthday' : 'Edit Event') : (eventForm.is_birthday ? 'Add Birthday' : 'Add Event') }}
+      </h3>
 
-        <form @submit.prevent="saveEvent" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+      <form @submit.prevent="saveEvent" class="space-y-4">
+        <FormInput v-model="eventForm.title" label="Title" type="text" required placeholder="Event title" />
+
+        <div class="grid grid-cols-2 gap-3">
+          <FormInput
+            v-model="eventForm.date"
+            :label="eventForm.multi_day ? 'Start Date' : 'Date'"
+            type="date"
+            required
+          />
+          <FormInput
+            v-if="eventForm.multi_day"
+            v-model="eventForm.end_date"
+            label="End Date"
+            type="date"
+            :min="eventForm.date"
+          />
+        </div>
+
+        <div class="flex items-center gap-4 flex-wrap">
+          <div v-if="!eventForm.is_birthday" class="flex items-center gap-2">
             <input
-              v-model="eventForm.title"
-              type="text"
-              required
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              placeholder="Event title"
+              v-model="eventForm.all_day"
+              type="checkbox"
+              id="all_day"
+              class="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500"
             />
+            <label for="all_day" class="text-sm text-gray-700 dark:text-gray-300">All day</label>
           </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {{ eventForm.multi_day ? 'Start Date' : 'Date' }}
-              </label>
-              <input
-                v-model="eventForm.date"
-                type="date"
-                required
-                class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              />
-            </div>
-            <div v-if="eventForm.multi_day">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
-              <input
-                v-model="eventForm.end_date"
-                type="date"
-                :min="eventForm.date"
-                class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              />
-            </div>
+          <div v-if="!eventForm.recurring && !eventForm.is_birthday" class="flex items-center gap-2">
+            <input
+              v-model="eventForm.multi_day"
+              type="checkbox"
+              id="multi_day"
+              class="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500"
+            />
+            <label for="multi_day" class="text-sm text-gray-700 dark:text-gray-300">Multi-day</label>
           </div>
-
-          <div class="flex items-center gap-4 flex-wrap">
-            <div v-if="!eventForm.is_birthday" class="flex items-center gap-2">
-              <input
-                v-model="eventForm.all_day"
-                type="checkbox"
-                id="all_day"
-                class="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500"
-              />
-              <label for="all_day" class="text-sm text-gray-700 dark:text-gray-300">All day</label>
-            </div>
-            <div v-if="!eventForm.recurring && !eventForm.is_birthday" class="flex items-center gap-2">
-              <input
-                v-model="eventForm.multi_day"
-                type="checkbox"
-                id="multi_day"
-                class="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500"
-              />
-              <label for="multi_day" class="text-sm text-gray-700 dark:text-gray-300">Multi-day</label>
-            </div>
-            <div v-if="!editingEvent && !eventForm.is_birthday" class="flex items-center gap-2">
-              <input
-                v-model="eventForm.recurring"
-                type="checkbox"
-                id="recurring"
-                class="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500"
-              />
-              <label for="recurring" class="text-sm text-gray-700 dark:text-gray-300">Recurring</label>
-            </div>
-            <div v-if="!editingEvent && !eventForm.recurring" class="flex items-center gap-2">
-              <input
-                v-model="eventForm.is_birthday"
-                type="checkbox"
-                id="is_birthday"
-                class="w-4 h-4 text-pink-500 rounded focus:ring-pink-500"
-                @change="if (eventForm.is_birthday) { eventForm.all_day = true; eventForm.multi_day = false; eventForm.recurring = false }"
-              />
-              <label for="is_birthday" class="text-sm text-gray-700 dark:text-gray-300">Birthday</label>
-            </div>
+          <div v-if="!editingEvent && !eventForm.is_birthday" class="flex items-center gap-2">
+            <input
+              v-model="eventForm.recurring"
+              type="checkbox"
+              id="recurring"
+              class="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500"
+            />
+            <label for="recurring" class="text-sm text-gray-700 dark:text-gray-300">Recurring</label>
           </div>
-
-          <!-- Recurring options -->
-          <div v-if="eventForm.recurring && !editingEvent" class="space-y-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Days of week</label>
-              <div class="flex gap-1.5">
-                <button
-                  v-for="(label, idx) in dayLabels"
-                  :key="idx"
-                  type="button"
-                  @click="toggleRecurringDay(idx)"
-                  class="w-9 h-9 rounded-full text-sm font-medium transition-colors"
-                  :class="eventForm.recurring_days.includes(idx)
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'"
-                >
-                  {{ label }}
-                </button>
-              </div>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Duration</label>
-              <select
-                v-model="eventForm.recurring_months"
-                class="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              >
-                <option :value="1">1 month</option>
-                <option :value="2">2 months</option>
-                <option :value="3">3 months</option>
-                <option :value="4">4 months</option>
-                <option :value="5">5 months</option>
-                <option :value="6">6 months</option>
-              </select>
-            </div>
+          <div v-if="!editingEvent && !eventForm.recurring" class="flex items-center gap-2">
+            <input
+              v-model="eventForm.is_birthday"
+              type="checkbox"
+              id="is_birthday"
+              class="w-4 h-4 text-pink-500 rounded focus:ring-pink-500"
+              @change="if (eventForm.is_birthday) { eventForm.all_day = true; eventForm.multi_day = false; eventForm.recurring = false }"
+            />
+            <label for="is_birthday" class="text-sm text-gray-700 dark:text-gray-300">Birthday</label>
           </div>
+        </div>
 
-          <!-- Birthday options -->
-          <div v-if="eventForm.is_birthday && !editingEvent" class="space-y-3 p-3 bg-pink-50 dark:bg-pink-900/20 rounded-xl">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Years to create</label>
-              <select
-                v-model="eventForm.birthday_years"
-                class="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 text-gray-900 dark:text-white"
-              >
-                <option :value="3">3 years</option>
-                <option :value="5">5 years</option>
-                <option :value="10">10 years</option>
-              </select>
-            </div>
-          </div>
-
-          <div v-if="!eventForm.all_day" class="space-y-3">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Time</label>
-              <div class="flex gap-2">
-                <select
-                  :value="getTimeParts(eventForm.time).hour"
-                  @change="setTimePart('time', 'hour', +($event.target as HTMLSelectElement).value)"
-                  class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
-                >
-                  <option v-for="h in timeHours" :key="h" :value="h">{{ h }}</option>
-                </select>
-                <select
-                  :value="getTimeParts(eventForm.time).minute"
-                  @change="setTimePart('time', 'minute', +($event.target as HTMLSelectElement).value)"
-                  class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
-                >
-                  <option v-for="m in timeMinutes" :key="m" :value="m">:{{ String(m).padStart(2, '0') }}</option>
-                </select>
-                <select
-                  :value="getTimeParts(eventForm.time).period"
-                  @change="setTimePart('time', 'period', ($event.target as HTMLSelectElement).value)"
-                  class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
-                >
-                  <option value="AM">AM</option>
-                  <option value="PM">PM</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Time <span class="font-normal text-gray-400">(optional)</span></label>
-              <div class="flex gap-2">
-                <select
-                  :value="getTimeParts(eventForm.end_time).hour"
-                  @change="setTimePart('end_time', 'hour', +($event.target as HTMLSelectElement).value)"
-                  class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
-                >
-                  <option v-for="h in timeHours" :key="h" :value="h">{{ h }}</option>
-                </select>
-                <select
-                  :value="getTimeParts(eventForm.end_time).minute"
-                  @change="setTimePart('end_time', 'minute', +($event.target as HTMLSelectElement).value)"
-                  class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
-                >
-                  <option v-for="m in timeMinutes" :key="m" :value="m">:{{ String(m).padStart(2, '0') }}</option>
-                </select>
-                <select
-                  :value="getTimeParts(eventForm.end_time).period"
-                  @change="setTimePart('end_time', 'period', ($event.target as HTMLSelectElement).value)"
-                  class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
-                >
-                  <option value="AM">AM</option>
-                  <option value="PM">PM</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="store.familyMembers.length > 0">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Assign to</label>
-            <div class="flex flex-wrap gap-2">
+        <!-- Recurring options -->
+        <div v-if="eventForm.recurring && !editingEvent" class="space-y-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+          <div>
+            <label class="form-label mb-2">Days of week</label>
+            <div class="flex gap-1.5">
               <button
-                v-for="person in store.familyMembers"
-                :key="person.id"
+                v-for="(label, idx) in dayLabels"
+                :key="idx"
                 type="button"
-                @click="togglePerson(person.id)"
-                class="px-3 py-1.5 text-xs rounded-lg font-medium transition-colors flex items-center gap-1.5"
-                :class="eventForm.person_ids.includes(person.id)
-                  ? 'ring-1 ring-offset-1 dark:ring-offset-gray-800'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'"
-                :style="eventForm.person_ids.includes(person.id) ? { backgroundColor: person.color + '25', color: person.color, '--tw-ring-color': person.color } : {}"
+                @click="toggleRecurringDay(idx)"
+                class="w-9 h-9 rounded-full text-sm font-medium transition-colors"
+                :class="eventForm.recurring_days.includes(idx)
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'"
               >
-                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="{ backgroundColor: person.color }"></span>
-                {{ person.name }}
+                {{ label }}
               </button>
             </div>
           </div>
-
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-            <textarea
-              v-model="eventForm.description"
-              rows="2"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white resize-none"
-              placeholder="Optional description"
-            ></textarea>
+            <label class="form-label">Duration</label>
+            <select
+              v-model="eventForm.recurring_months"
+              class="form-input bg-white dark:bg-gray-700"
+            >
+              <option :value="1">1 month</option>
+              <option :value="2">2 months</option>
+              <option :value="3">3 months</option>
+              <option :value="4">4 months</option>
+              <option :value="5">5 months</option>
+              <option :value="6">6 months</option>
+            </select>
           </div>
+        </div>
 
-          <!-- iCloud Sync -->
-          <div v-if="store.icloudAccounts.length > 0" class="space-y-2">
-            <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <!-- Birthday options -->
+        <div v-if="eventForm.is_birthday && !editingEvent" class="space-y-3 p-3 bg-pink-50 dark:bg-pink-900/20 rounded-xl">
+          <div>
+            <label class="form-label">Years to create</label>
+            <select
+              v-model="eventForm.birthday_years"
+              class="form-input focus:ring-pink-500"
+            >
+              <option :value="3">3 years</option>
+              <option :value="5">5 years</option>
+              <option :value="10">10 years</option>
+            </select>
+          </div>
+        </div>
+
+        <div v-if="!eventForm.all_day" class="space-y-3">
+          <div>
+            <label class="form-label">Start Time</label>
+            <div class="flex gap-2">
+              <select
+                :value="getTimeParts(eventForm.time).hour"
+                @change="setTimePart('time', 'hour', +($event.target as HTMLSelectElement).value)"
+                class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+              >
+                <option v-for="h in timeHours" :key="h" :value="h">{{ h }}</option>
+              </select>
+              <select
+                :value="getTimeParts(eventForm.time).minute"
+                @change="setTimePart('time', 'minute', +($event.target as HTMLSelectElement).value)"
+                class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+              >
+                <option v-for="m in timeMinutes" :key="m" :value="m">:{{ String(m).padStart(2, '0') }}</option>
+              </select>
+              <select
+                :value="getTimeParts(eventForm.time).period"
+                @change="setTimePart('time', 'period', ($event.target as HTMLSelectElement).value)"
+                class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+              >
+                <option value="AM">AM</option>
+                <option value="PM">PM</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="form-label">End Time <span class="font-normal text-gray-400">(optional)</span></label>
+            <div class="flex gap-2">
+              <select
+                :value="getTimeParts(eventForm.end_time).hour"
+                @change="setTimePart('end_time', 'hour', +($event.target as HTMLSelectElement).value)"
+                class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+              >
+                <option v-for="h in timeHours" :key="h" :value="h">{{ h }}</option>
+              </select>
+              <select
+                :value="getTimeParts(eventForm.end_time).minute"
+                @change="setTimePart('end_time', 'minute', +($event.target as HTMLSelectElement).value)"
+                class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+              >
+                <option v-for="m in timeMinutes" :key="m" :value="m">:{{ String(m).padStart(2, '0') }}</option>
+              </select>
+              <select
+                :value="getTimeParts(eventForm.end_time).period"
+                @change="setTimePart('end_time', 'period', ($event.target as HTMLSelectElement).value)"
+                class="flex-1 px-2 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white text-sm"
+              >
+                <option value="AM">AM</option>
+                <option value="PM">PM</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="store.familyMembers.length > 0">
+          <label class="form-label mb-2">Assign to</label>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="person in store.familyMembers"
+              :key="person.id"
+              type="button"
+              @click="togglePerson(person.id)"
+              class="px-3 py-1.5 text-xs rounded-lg font-medium transition-colors flex items-center gap-1.5"
+              :class="eventForm.person_ids.includes(person.id)
+                ? 'ring-1 ring-offset-1 dark:ring-offset-gray-800'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'"
+              :style="eventForm.person_ids.includes(person.id) ? { backgroundColor: person.color + '25', color: person.color, '--tw-ring-color': person.color } : {}"
+            >
+              <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="{ backgroundColor: person.color }"></span>
+              {{ person.name }}
+            </button>
+          </div>
+        </div>
+
+        <FormTextarea v-model="eventForm.description" label="Description" :rows="2" placeholder="Optional description" />
+
+        <!-- iCloud Sync -->
+        <div v-if="store.icloudAccounts.length > 0" class="space-y-2">
+          <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+            </svg>
+            Sync to iCloud
+          </label>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="account in store.icloudAccounts"
+              :key="account.id"
+              type="button"
+              @click="toggleSyncAccount(account.id)"
+              class="px-3 py-1.5 text-xs rounded-lg font-medium transition-colors flex items-center gap-1.5"
+              :class="eventForm.sync_account_ids.includes(account.id)
+                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 ring-1 ring-blue-300 dark:ring-blue-700'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
               </svg>
-              Sync to iCloud
-            </label>
-            <div class="flex flex-wrap gap-2">
-              <button
-                v-for="account in store.icloudAccounts"
-                :key="account.id"
-                type="button"
-                @click="toggleSyncAccount(account.id)"
-                class="px-3 py-1.5 text-xs rounded-lg font-medium transition-colors flex items-center gap-1.5"
-                :class="eventForm.sync_account_ids.includes(account.id)
-                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 ring-1 ring-blue-300 dark:ring-blue-700'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'"
-              >
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
-                </svg>
-                {{ account.label }}
-              </button>
-            </div>
+              {{ account.label }}
+            </button>
           </div>
+        </div>
 
-          <div class="flex gap-2 pt-2 flex-wrap">
+        <FormActions>
+          <template #left>
             <button
               v-if="editingEvent"
               type="button"
               @click="deleteEvent"
-              class="px-4 py-2.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-sm"
+              class="btn-danger btn--sm"
             >
               Delete
             </button>
@@ -1290,114 +1258,99 @@ const refresh = () => window.location.reload()
               v-if="editingEvent?.recurring_group_id"
               type="button"
               @click="deleteEventSeries"
-              class="px-4 py-2.5 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors text-sm"
+              class="btn-danger-solid btn--sm"
             >
               Delete Series
             </button>
-            <div class="flex-1"></div>
-            <button
-              type="button"
-              @click="showEventModal = false"
-              class="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              v-if="editingEvent?.recurring_group_id"
-              type="button"
-              @click="saveEventSeries"
-              class="px-4 py-2.5 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 transition-colors text-sm"
-            >
-              Save Series
-            </button>
-            <button
-              type="submit"
-              :disabled="eventForm.recurring && eventForm.recurring_days.length === 0"
-              class="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-            >
-              {{ editingEvent ? 'Save' : 'Add' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          </template>
+          <button
+            type="button"
+            @click="showEventModal = false"
+            class="btn-secondary btn--sm"
+          >
+            Cancel
+          </button>
+          <button
+            v-if="editingEvent?.recurring_group_id"
+            type="button"
+            @click="saveEventSeries"
+            class="px-4 py-2.5 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 transition-colors text-sm"
+          >
+            Save Series
+          </button>
+          <button
+            type="submit"
+            :disabled="eventForm.recurring && eventForm.recurring_days.length === 0"
+            class="btn-primary btn--sm"
+          >
+            {{ editingEvent ? 'Save' : 'Add' }}
+          </button>
+        </FormActions>
+      </form>
+    </BaseModal>
 
     <!-- People Modal -->
-    <div
-      v-if="showPersonModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
-      @click.self="showPersonModal = false"
-    >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 my-auto max-h-[90vh] overflow-y-auto">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Manage Family Members</h3>
+    <BaseModal :show="showPersonModal" @close="showPersonModal = false">
+      <h3 class="modal-title">Manage Family Members</h3>
 
-        <!-- Existing members -->
-        <div v-if="store.familyMembers.length > 0" class="space-y-2 mb-6">
-          <div
-            v-for="person in store.familyMembers"
-            :key="person.id"
-            class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-xl"
+      <!-- Existing members -->
+      <div v-if="store.familyMembers.length > 0" class="space-y-2 mb-6">
+        <div
+          v-for="person in store.familyMembers"
+          :key="person.id"
+          class="manage-list-item"
+        >
+          <div class="flex items-center gap-3">
+            <span class="w-4 h-4 rounded-full" :style="{ backgroundColor: person.color }"></span>
+            <span class="text-gray-900 dark:text-white">{{ person.name }}</span>
+          </div>
+          <button
+            @click="deletePerson(person.id)"
+            class="p-1 text-gray-400 hover:text-red-500 transition-colors"
           >
-            <div class="flex items-center gap-3">
-              <span class="w-4 h-4 rounded-full" :style="{ backgroundColor: person.color }"></span>
-              <span class="text-gray-900 dark:text-white">{{ person.name }}</span>
-            </div>
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Add new member -->
+      <form @submit.prevent="savePerson" class="space-y-4">
+        <FormInput v-model="personForm.name" label="Name" type="text" placeholder="Family member name" />
+
+        <div>
+          <label class="form-label mb-2">Color</label>
+          <div class="flex flex-wrap gap-2">
             <button
-              @click="deletePerson(person.id)"
-              class="p-1 text-gray-400 hover:text-red-500 transition-colors"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
+              v-for="color in personColors"
+              :key="color"
+              type="button"
+              @click="personForm.color = color"
+              class="w-8 h-8 rounded-full transition-transform hover:scale-110"
+              :class="personForm.color === color ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-offset-gray-800' : ''"
+              :style="{ backgroundColor: color }"
+            ></button>
           </div>
         </div>
 
-        <!-- Add new member -->
-        <form @submit.prevent="savePerson" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-            <input
-              v-model="personForm.name"
-              type="text"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              placeholder="Family member name"
-            />
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Color</label>
-            <div class="flex flex-wrap gap-2">
-              <button
-                v-for="color in personColors"
-                :key="color"
-                type="button"
-                @click="personForm.color = color"
-                class="w-8 h-8 rounded-full transition-transform hover:scale-110"
-                :class="personForm.color === color ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-offset-gray-800' : ''"
-                :style="{ backgroundColor: color }"
-              ></button>
-            </div>
-          </div>
-
-          <div class="flex gap-3 pt-2">
-            <button
-              type="button"
-              @click="showPersonModal = false"
-              class="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            >
-              Close
-            </button>
-            <button
-              type="submit"
-              :disabled="!personForm.name"
-              class="flex-1 px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Add Person
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <FormActions>
+          <button
+            type="button"
+            @click="showPersonModal = false"
+            class="flex-1 btn-secondary"
+          >
+            Close
+          </button>
+          <button
+            type="submit"
+            :disabled="!personForm.name"
+            class="flex-1 btn-primary"
+          >
+            Add Person
+          </button>
+        </FormActions>
+      </form>
+    </BaseModal>
   </div>
 </template>

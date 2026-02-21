@@ -8,7 +8,7 @@ const fiveDayForecast = () => weather.daily.slice(0, 5)
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+  <div class="card p-4">
     <!-- Loading skeleton -->
     <div v-if="weather.loading && !weather.current" class="flex items-center gap-4">
       <div class="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse"></div>
@@ -65,10 +65,10 @@ const fiveDayForecast = () => weather.daily.slice(0, 5)
           :key="day.date"
           class="flex-1 text-center py-2 px-1 rounded-lg bg-gray-50 dark:bg-gray-700/50"
         >
-          <div class="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">{{ day.dayName }}</div>
+          <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ day.dayName }}</div>
           <div class="text-base my-0.5">{{ getWeatherInfo(day.weathercode).emoji }}</div>
           <div class="text-xs font-semibold text-gray-900 dark:text-white">{{ day.high }}°</div>
-          <div class="text-[10px] text-gray-400 dark:text-gray-500">{{ day.low }}°</div>
+          <div class="text-xs text-gray-400 dark:text-gray-500">{{ day.low }}°</div>
         </div>
       </div>
     </template>

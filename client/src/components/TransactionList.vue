@@ -13,8 +13,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-    <div v-if="transactions.length > 0" class="divide-y divide-gray-100 dark:divide-gray-700 px-5">
+  <div class="card overflow-hidden">
+    <div v-if="transactions.length > 0" class="list-divider px-5">
       <TransactionItem
         v-for="transaction in transactions"
         :key="transaction.id"

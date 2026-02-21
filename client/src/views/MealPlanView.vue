@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useMealsStore, type Recipe, type MealPlanEntry, type RecipeIngredient } from '@/stores/meals'
+import PageHeader from '@/components/PageHeader.vue'
+import BaseModal from '@/components/BaseModal.vue'
+import LoadingSpinner from '@/components/LoadingSpinner.vue'
+import FormInput from '@/components/FormInput.vue'
+import FormTextarea from '@/components/FormTextarea.vue'
+import FormActions from '@/components/FormActions.vue'
 
 const store = useMealsStore()
 
@@ -330,22 +336,12 @@ onMounted(async () => {
     store.fetchMealPlan(currentWeekStart.value, weekEnd.value),
   ])
 })
-
-const refresh = () => window.location.reload()
 </script>
 
 <template>
   <div class="space-y-4 sm:space-y-6">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div>
-        <div class="flex items-center gap-2">
-          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Meal Plan</h1>
-          <button @click="refresh" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Refresh"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>
-        </div>
-        <p class="text-gray-500 dark:text-gray-400 mt-1">Plan your weekly meals and manage recipes</p>
-      </div>
-    </div>
+    <PageHeader title="Meal Plan" subtitle="Plan your weekly meals and manage recipes" />
 
     <!-- Tabs -->
     <div class="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
@@ -372,11 +368,11 @@ const refresh = () => window.location.reload()
     <!-- ==================== WEEKLY PLAN TAB ==================== -->
     <div v-if="activeTab === 'plan'" class="space-y-4">
       <!-- Week Navigation -->
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
         <div class="flex items-center gap-2">
           <button
             @click="prevWeek"
-            class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
+            class="btn-icon text-gray-600 dark:text-gray-400"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -390,7 +386,7 @@ const refresh = () => window.location.reload()
           </button>
           <button
             @click="nextWeek"
-            class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
+            class="btn-icon text-gray-600 dark:text-gray-400"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -424,7 +420,7 @@ const refresh = () => window.location.reload()
       </div>
 
       <!-- Desktop Grid -->
-      <div class="hidden md:block bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+      <div class="hidden md:block card overflow-hidden">
         <table class="w-full">
           <thead>
             <tr class="border-b border-gray-100 dark:border-gray-700">
@@ -487,7 +483,7 @@ const refresh = () => window.location.reload()
         <div
           v-for="day in weekDays"
           :key="day.date"
-          class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden"
+          class="card overflow-hidden"
           :class="isToday(day.date) ? 'ring-2 ring-emerald-400 dark:ring-emerald-500' : ''"
         >
           <div class="px-4 py-2.5 border-b border-gray-100 dark:border-gray-700" :class="isToday(day.date) ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-gray-50 dark:bg-gray-700/50'">
@@ -551,26 +547,23 @@ const refresh = () => window.location.reload()
         </select>
         <button
           @click="openAddRecipeModal"
-          class="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors whitespace-nowrap"
+          class="btn-primary whitespace-nowrap"
         >
           + Add Recipe
         </button>
       </div>
 
       <!-- Loading State -->
-      <div v-if="store.loading && !store.initialized" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8">
-        <div class="flex flex-col items-center justify-center gap-3">
-          <div class="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-          <span class="text-gray-500 dark:text-gray-400 text-sm">Loading...</span>
-        </div>
+      <div v-if="store.loading && !store.initialized" class="card p-8">
+        <LoadingSpinner />
       </div>
 
       <!-- Empty State -->
       <div
         v-else-if="store.recipes.length === 0"
-        class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-12 text-center"
+        class="card p-8 sm:p-12 text-center"
       >
-        <svg class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
         </svg>
         <p class="text-gray-500 dark:text-gray-400 font-medium">No recipes yet</p>
@@ -583,7 +576,7 @@ const refresh = () => window.location.reload()
           v-for="recipe in filteredRecipesForBook"
           :key="recipe.id"
           @click="openEditRecipeModal(recipe)"
-          class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 cursor-pointer hover:shadow-md hover:border-gray-200 dark:hover:border-gray-600 transition-all"
+          class="card p-4 cursor-pointer hover:shadow-md hover:border-gray-200 dark:hover:border-gray-600 transition-all"
         >
           <div class="flex items-start justify-between gap-2 mb-2">
             <h3 class="font-semibold text-gray-900 dark:text-white line-clamp-1">{{ recipe.title }}</h3>
@@ -621,334 +614,256 @@ const refresh = () => window.location.reload()
       <!-- No results after filtering -->
       <div
         v-if="filteredRecipesForBook.length === 0 && store.recipes.length > 0"
-        class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 text-center"
+        class="card p-8 text-center"
       >
         <p class="text-gray-500 dark:text-gray-400">No recipes match your search</p>
       </div>
     </div>
 
     <!-- ==================== MEAL ENTRY MODAL ==================== -->
-    <div
-      v-if="showMealModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
-      @click.self="showMealModal = false"
-    >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-          {{ editingMealEntry ? 'Edit Meal' : 'Add Meal' }}
-        </h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          {{ getMealLabel(mealForm.meal_type) }} &middot;
-          {{ new Date(mealForm.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) }}
-        </p>
+    <BaseModal :show="showMealModal" @close="showMealModal = false" max-width="lg">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+        {{ editingMealEntry ? 'Edit Meal' : 'Add Meal' }}
+      </h3>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        {{ getMealLabel(mealForm.meal_type) }} &middot;
+        {{ new Date(mealForm.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) }}
+      </p>
 
-        <!-- Mode toggle -->
-        <div class="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1 mb-4">
-          <button
-            @click="mealForm.mode = 'recipe'"
-            class="flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
-            :class="mealForm.mode === 'recipe'
-              ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-              : 'text-gray-500 dark:text-gray-400'"
-          >
-            From Recipe
-          </button>
-          <button
-            @click="mealForm.mode = 'custom'"
-            class="flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
-            :class="mealForm.mode === 'custom'
-              ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-              : 'text-gray-500 dark:text-gray-400'"
-          >
-            Custom
-          </button>
-        </div>
+      <!-- Mode toggle -->
+      <div class="toggle-group gap-1 mb-4">
+        <button
+          @click="mealForm.mode = 'recipe'"
+          class="flex-1 toggle-btn"
+          :class="mealForm.mode === 'recipe' ? 'toggle-btn--active' : ''"
+        >
+          From Recipe
+        </button>
+        <button
+          @click="mealForm.mode = 'custom'"
+          class="flex-1 toggle-btn"
+          :class="mealForm.mode === 'custom' ? 'toggle-btn--active' : ''"
+        >
+          Custom
+        </button>
+      </div>
 
-        <!-- Recipe Picker -->
-        <div v-if="mealForm.mode === 'recipe'" class="space-y-3 mb-4">
-          <!-- Selected recipe display -->
-          <div v-if="selectedRecipeName" class="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl">
-            <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+      <!-- Recipe Picker -->
+      <div v-if="mealForm.mode === 'recipe'" class="space-y-3 mb-4">
+        <!-- Selected recipe display -->
+        <div v-if="selectedRecipeName" class="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl">
+          <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span class="text-sm font-medium text-emerald-700 dark:text-emerald-300 flex-1">{{ selectedRecipeName }}</span>
+          <button @click="mealForm.recipe_id = null" class="text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
-            <span class="text-sm font-medium text-emerald-700 dark:text-emerald-300 flex-1">{{ selectedRecipeName }}</span>
-            <button @click="mealForm.recipe_id = null" class="text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <!-- Search + filter -->
-          <div class="flex gap-2">
-            <input
-              v-model="recipeSearch"
-              type="text"
-              placeholder="Search recipes..."
-              class="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-            <select
-              v-model="recipeFilterCategory"
-              class="px-2 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">All</option>
-              <option v-for="cat in store.recipeCategories" :key="cat.id" :value="cat.id">
-                {{ cat.icon }} {{ cat.name }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Recipe list -->
-          <div class="max-h-48 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-600 divide-y divide-gray-100 dark:divide-gray-700">
-            <div
-              v-for="recipe in filteredRecipesForPicker"
-              :key="recipe.id"
-              @click="selectRecipeForMeal(recipe)"
-              class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              :class="mealForm.recipe_id === recipe.id ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''"
-            >
-              <span v-if="recipe.category_icon" class="text-sm">{{ recipe.category_icon }}</span>
-              <span class="text-sm text-gray-800 dark:text-gray-200 flex-1">{{ recipe.title }}</span>
-              <span v-if="recipe.prep_time || recipe.cook_time" class="text-xs text-gray-400 dark:text-gray-500">
-                {{ (recipe.prep_time || 0) + (recipe.cook_time || 0) }}min
-              </span>
-            </div>
-            <div v-if="filteredRecipesForPicker.length === 0" class="px-3 py-4 text-center text-sm text-gray-400 dark:text-gray-500">
-              No recipes found
-            </div>
-          </div>
+          </button>
         </div>
 
-        <!-- Custom Title -->
-        <div v-if="mealForm.mode === 'custom'" class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Meal Name</label>
+        <!-- Search + filter -->
+        <div class="flex gap-2">
           <input
-            v-model="mealForm.custom_title"
+            v-model="recipeSearch"
             type="text"
-            placeholder="e.g. Leftovers, Eating out..."
-            class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+            placeholder="Search recipes..."
+            class="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
+          <select
+            v-model="recipeFilterCategory"
+            class="px-2 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+            <option value="">All</option>
+            <option v-for="cat in store.recipeCategories" :key="cat.id" :value="cat.id">
+              {{ cat.icon }} {{ cat.name }}
+            </option>
+          </select>
         </div>
 
-        <!-- Notes -->
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes (optional)</label>
-          <textarea
-            v-model="mealForm.notes"
-            rows="2"
-            placeholder="Any notes..."
-            class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white resize-none"
-          />
+        <!-- Recipe list -->
+        <div class="max-h-48 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-600 divide-y divide-gray-100 dark:divide-gray-700">
+          <div
+            v-for="recipe in filteredRecipesForPicker"
+            :key="recipe.id"
+            @click="selectRecipeForMeal(recipe)"
+            class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            :class="mealForm.recipe_id === recipe.id ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''"
+          >
+            <span v-if="recipe.category_icon" class="text-sm">{{ recipe.category_icon }}</span>
+            <span class="text-sm text-gray-800 dark:text-gray-200 flex-1">{{ recipe.title }}</span>
+            <span v-if="recipe.prep_time || recipe.cook_time" class="text-xs text-gray-400 dark:text-gray-500">
+              {{ (recipe.prep_time || 0) + (recipe.cook_time || 0) }}min
+            </span>
+          </div>
+          <div v-if="filteredRecipesForPicker.length === 0" class="px-3 py-4 text-center text-sm text-gray-400 dark:text-gray-500">
+            No recipes found
+          </div>
         </div>
+      </div>
 
-        <!-- Actions -->
-        <div class="flex gap-3">
+      <!-- Custom Title -->
+      <div v-if="mealForm.mode === 'custom'" class="mb-4">
+        <FormInput v-model="mealForm.custom_title" label="Meal Name" type="text" placeholder="e.g. Leftovers, Eating out..." />
+      </div>
+
+      <!-- Notes -->
+      <div class="mb-4">
+        <FormTextarea v-model="mealForm.notes" label="Notes (optional)" rows="2" placeholder="Any notes..." />
+      </div>
+
+      <!-- Actions -->
+      <FormActions>
+        <template #left>
           <button
             v-if="editingMealEntry"
             type="button"
             @click="deleteMealEntry"
-            class="px-4 py-2.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+            class="btn-danger"
           >
             Delete
           </button>
-          <div class="flex-1"></div>
-          <button
-            @click="showMealModal = false"
-            class="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            @click="saveMealEntry"
-            class="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
-          >
-            {{ editingMealEntry ? 'Save' : 'Add' }}
-          </button>
-        </div>
-      </div>
-    </div>
+        </template>
+        <button
+          @click="showMealModal = false"
+          class="btn-secondary"
+        >
+          Cancel
+        </button>
+        <button
+          @click="saveMealEntry"
+          class="btn-primary"
+        >
+          {{ editingMealEntry ? 'Save' : 'Add' }}
+        </button>
+      </FormActions>
+    </BaseModal>
 
     <!-- ==================== RECIPE ADD/EDIT MODAL ==================== -->
-    <div
-      v-if="showRecipeModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
-      @click.self="showRecipeModal = false"
-    >
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          {{ editingRecipe ? 'Edit Recipe' : 'Add Recipe' }}
-        </h3>
+    <BaseModal :show="showRecipeModal" @close="showRecipeModal = false" max-width="lg">
+      <h3 class="modal-title">
+        {{ editingRecipe ? 'Edit Recipe' : 'Add Recipe' }}
+      </h3>
 
-        <form @submit.prevent="saveRecipe" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
-            <input
-              v-model="recipeForm.title"
-              type="text"
-              required
-              placeholder="e.g. Chicken Parmesan"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-            />
-          </div>
+      <form @submit.prevent="saveRecipe" class="space-y-4">
+        <FormInput v-model="recipeForm.title" label="Title" type="text" required placeholder="e.g. Chicken Parmesan" />
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-            <textarea
-              v-model="recipeForm.description"
-              rows="2"
-              placeholder="Optional description..."
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white resize-none"
-            />
-          </div>
+        <FormTextarea v-model="recipeForm.description" label="Description" rows="2" placeholder="Optional description..." />
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
-            <select
-              v-model="recipeForm.category_id"
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+        <div>
+          <label class="form-label">Category</label>
+          <select
+            v-model="recipeForm.category_id"
+            class="form-input"
+          >
+            <option :value="null">No category</option>
+            <option v-for="cat in store.recipeCategories" :key="cat.id" :value="cat.id">
+              {{ cat.icon }} {{ cat.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <FormInput v-model.number="recipeForm.servings" label="Servings" type="number" min="1" placeholder="4" />
+          <FormInput v-model.number="recipeForm.prep_time" label="Prep (min)" type="number" min="0" placeholder="15" />
+          <FormInput v-model.number="recipeForm.cook_time" label="Cook (min)" type="number" min="0" placeholder="30" />
+        </div>
+
+        <FormTextarea v-model="recipeForm.instructions" label="Instructions" rows="4" placeholder="Step-by-step instructions..." />
+
+        <!-- Ingredients -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Ingredients</label>
+            <button
+              type="button"
+              @click="addIngredientRow"
+              class="text-sm text-emerald-500 hover:text-emerald-600 font-medium"
             >
-              <option :value="null">No category</option>
-              <option v-for="cat in store.recipeCategories" :key="cat.id" :value="cat.id">
-                {{ cat.icon }} {{ cat.name }}
-              </option>
-            </select>
+              + Add
+            </button>
           </div>
-
-          <div class="grid grid-cols-3 gap-3">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Servings</label>
-              <input
-                v-model.number="recipeForm.servings"
-                type="number"
-                min="1"
-                placeholder="4"
-                class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Prep (min)</label>
-              <input
-                v-model.number="recipeForm.prep_time"
-                type="number"
-                min="0"
-                placeholder="15"
-                class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cook (min)</label>
-              <input
-                v-model.number="recipeForm.cook_time"
-                type="number"
-                min="0"
-                placeholder="30"
-                class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Instructions</label>
-            <textarea
-              v-model="recipeForm.instructions"
-              rows="4"
-              placeholder="Step-by-step instructions..."
-              class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white resize-none"
-            />
-          </div>
-
-          <!-- Ingredients -->
-          <div>
-            <div class="flex items-center justify-between mb-2">
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Ingredients</label>
-              <button
-                type="button"
-                @click="addIngredientRow"
-                class="text-sm text-emerald-500 hover:text-emerald-600 font-medium"
-              >
-                + Add
-              </button>
-            </div>
-            <div class="space-y-2">
-              <div v-for="(ing, i) in ingredientRows" :key="i" class="flex gap-2 items-start">
-                <div class="flex flex-col -space-y-0.5">
-                  <button
-                    type="button"
-                    @click="moveIngredient(i, -1)"
-                    :disabled="i === 0"
-                    class="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
-                  </button>
-                  <button
-                    type="button"
-                    @click="moveIngredient(i, 1)"
-                    :disabled="i === ingredientRows.length - 1"
-                    class="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                  </button>
-                </div>
-                <input
-                  v-model.number="ing.quantity"
-                  type="number"
-                  step="0.25"
-                  min="0"
-                  placeholder="Qty"
-                  class="w-16 px-2 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-                />
-                <select
-                  v-model="ing.unit"
-                  class="w-20 px-1 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-                >
-                  <option v-for="u in unitOptions" :key="u" :value="u || null">{{ u || 'unit' }}</option>
-                </select>
-                <input
-                  v-model="ing.name"
-                  type="text"
-                  placeholder="Ingredient name"
-                  class="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
-                />
+          <div class="space-y-2">
+            <div v-for="(ing, i) in ingredientRows" :key="i" class="flex gap-2 items-start">
+              <div class="flex flex-col -space-y-0.5">
                 <button
-                  v-if="ingredientRows.length > 1"
                   type="button"
-                  @click="removeIngredientRow(i)"
-                  class="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                  @click="moveIngredient(i, -1)"
+                  :disabled="i === 0"
+                  class="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
                 >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+                </button>
+                <button
+                  type="button"
+                  @click="moveIngredient(i, 1)"
+                  :disabled="i === ingredientRows.length - 1"
+                  class="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </button>
               </div>
+              <input
+                v-model.number="ing.quantity"
+                type="number"
+                step="0.25"
+                min="0"
+                placeholder="Qty"
+                class="w-16 px-2 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+              />
+              <select
+                v-model="ing.unit"
+                class="w-20 px-1 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+              >
+                <option v-for="u in unitOptions" :key="u" :value="u || null">{{ u || 'unit' }}</option>
+              </select>
+              <input
+                v-model="ing.name"
+                type="text"
+                placeholder="Ingredient name"
+                class="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+              />
+              <button
+                v-if="ingredientRows.length > 1"
+                type="button"
+                @click="removeIngredientRow(i)"
+                class="p-2 text-gray-400 hover:text-red-500 transition-colors"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
           </div>
+        </div>
 
-          <div class="flex gap-3 pt-2">
+        <FormActions>
+          <template #left>
             <button
               v-if="editingRecipe"
               type="button"
               @click="deleteRecipe"
-              class="px-4 py-2.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+              class="btn-danger"
             >
               Delete
             </button>
-            <div class="flex-1"></div>
-            <button
-              type="button"
-              @click="showRecipeModal = false"
-              class="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              class="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
-            >
-              {{ editingRecipe ? 'Save' : 'Add' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          </template>
+          <button
+            type="button"
+            @click="showRecipeModal = false"
+            class="btn-secondary"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="btn-primary"
+          >
+            {{ editingRecipe ? 'Save' : 'Add' }}
+          </button>
+        </FormActions>
+      </form>
+    </BaseModal>
   </div>
 </template>

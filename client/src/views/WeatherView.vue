@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useWeatherStore, getWeatherInfo, type GeocodingResult } from '@/stores/weather'
+import PageHeader from '@/components/PageHeader.vue'
+import LoadingSpinner from '@/components/LoadingSpinner.vue'
 
 const weather = useWeatherStore()
 
@@ -48,25 +50,15 @@ onMounted(() => {
     weather.fetchWeather()
   }
 })
-
-const refresh = () => window.location.reload()
 </script>
 
 <template>
   <div class="space-y-4 sm:space-y-6">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-      <div>
-        <div class="flex items-center gap-2">
-          <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Weather</h1>
-          <button @click="refresh" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Refresh"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>
-        </div>
-        <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">Local forecast and conditions</p>
-      </div>
-    </div>
+    <PageHeader title="Weather" subtitle="Local forecast and conditions" />
 
     <!-- Location search -->
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6">
+    <div class="card p-4 sm:p-6">
       <div class="flex flex-col sm:flex-row gap-3">
         <div class="flex-1 relative">
           <input
@@ -75,7 +67,7 @@ const refresh = () => window.location.reload()
             @focus="showDropdown = searchResults.length > 0"
             type="text"
             placeholder="Search for a city..."
-            class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white"
+            class="form-input"
           />
           <!-- Search dropdown -->
           <div
@@ -125,15 +117,12 @@ const refresh = () => window.location.reload()
     </div>
 
     <!-- Loading state -->
-    <div v-if="weather.loading && !weather.current" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 sm:p-16">
-      <div class="flex flex-col items-center justify-center gap-3">
-        <div class="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-        <span class="text-gray-500 dark:text-gray-400 text-sm">Loading weather...</span>
-      </div>
+    <div v-if="weather.loading && !weather.current" class="card p-8 sm:p-16">
+      <LoadingSpinner message="Loading weather..." />
     </div>
 
     <!-- No location -->
-    <div v-else-if="!weather.hasLocation" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 sm:p-16 text-center">
+    <div v-else-if="!weather.hasLocation" class="card p-8 sm:p-16 text-center">
       <div class="text-4xl mb-3">🌤️</div>
       <p class="text-gray-500 dark:text-gray-400 font-medium">No location set</p>
       <p class="text-gray-400 dark:text-gray-500 text-sm mt-1">Search for a city or use your current location</p>
@@ -141,7 +130,7 @@ const refresh = () => window.location.reload()
 
     <!-- Current conditions hero -->
     <template v-else-if="weather.current">
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 sm:p-8">
+      <div class="card p-6 sm:p-8">
         <div class="flex items-center gap-4 sm:gap-6">
           <span class="text-5xl sm:text-6xl">{{ getWeatherInfo(weather.current.weathercode).emoji }}</span>
           <div>
@@ -158,11 +147,11 @@ const refresh = () => window.location.reload()
       </div>
 
       <!-- 7-day forecast -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+      <div class="card overflow-hidden">
         <div class="px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-700">
           <h2 class="font-semibold text-gray-900 dark:text-white">7-Day Forecast</h2>
         </div>
-        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+        <div class="list-divider">
           <div
             v-for="(day, i) in weather.daily"
             :key="day.date"
