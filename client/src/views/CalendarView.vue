@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useCalendarStore, type CalendarEvent } from '@/stores/calendar'
-import { useTodosStore, type TodoItem } from '@/stores/todos'
 import { useWeatherStore } from '@/stores/weather'
 import WeatherWidget from '@/components/WeatherWidget.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -12,7 +11,6 @@ import FormTextarea from '@/components/FormTextarea.vue'
 import FormActions from '@/components/FormActions.vue'
 
 const store = useCalendarStore()
-const todosStore = useTodosStore()
 const weatherStore = useWeatherStore()
 
 const currentDate = ref(new Date())
@@ -171,20 +169,6 @@ const calendarDays = computed(() => {
   return days
 })
 
-const todosWithDueDates = computed(() =>
-  todosStore.todos.filter(t => t.due_date && !t.completed)
-)
-
-const todosByDate = computed(() => {
-  const map = new Map<string, TodoItem[]>()
-  for (const todo of todosWithDueDates.value) {
-    const existing = map.get(todo.due_date!) || []
-    existing.push(todo)
-    map.set(todo.due_date!, existing)
-  }
-  return map
-})
-
 function sortEvents<T extends { event: CalendarEvent }>(entries: T[]): T[] {
   return entries.sort((a, b) => {
     const aAllDay = a.event.all_day || !a.event.time
@@ -240,7 +224,7 @@ const isToday = (dateStr: string) => {
 const agendaItems = computed(() => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const items: { dateStr: string; label: string; relativeLabel: string | null; events: CalendarEvent[]; todos: TodoItem[] }[] = []
+  const items: { dateStr: string; label: string; relativeLabel: string | null; events: CalendarEvent[] }[] = []
 
   for (let i = 0; i < agendaDays.value; i++) {
     const date = new Date(today)
@@ -248,9 +232,8 @@ const agendaItems = computed(() => {
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 
     const events = getEventsForDay(dateStr)
-    const todos = getTodosForDay(dateStr)
 
-    if (events.length === 0 && todos.length === 0) continue
+    if (events.length === 0) continue
 
     let relativeLabel: string | null = null
     if (i === 0) relativeLabel = 'Today'
@@ -260,8 +243,7 @@ const agendaItems = computed(() => {
       dateStr,
       label: date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
       relativeLabel,
-      events,
-      todos
+      events
     })
   }
 
@@ -400,19 +382,6 @@ function getEventsForDay(dateStr: string) {
     // Both all-day — sort by title
     return a.title.localeCompare(b.title)
   })
-}
-
-function getTodosForDay(dateStr: string) {
-  return todosByDate.value.get(dateStr) || []
-}
-
-function getTodoStyle(todo: TodoItem) {
-  const color = todo.person_color || '#14b8a6'
-  return {
-    borderLeft: `3px dashed ${color}`,
-    backgroundColor: color + '1a',
-    color
-  }
 }
 
 // Fetch events based on current view
@@ -586,7 +555,6 @@ onMounted(async () => {
   store.fetchICloudAccounts()
   await store.seedHolidays()
   fetchEventsForView()
-  todosStore.fetchTodos()
 
   // Init weather
   if (!weatherStore.hasLocation) {
@@ -768,24 +736,11 @@ watch([currentDate, viewMode], () => {
                   <span class="opacity-50">{{ event.title }}</span>
                 </template>
               </div>
-              <!-- Todos with due dates -->
               <div
-                v-for="todo in getTodosForDay(day.dateStr).slice(0, Math.max(0, 3 - (eventsByDate.get(day.dateStr) || []).length))"
-                :key="`todo-${todo.id}`"
-                @click.stop
-                class="px-1 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs truncate rounded font-medium flex items-center gap-1"
-                :style="getTodoStyle(todo)"
-              >
-                <svg class="w-2.5 h-2.5 sm:w-3 sm:h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                {{ todo.title }}
-              </div>
-              <div
-                v-if="(eventsByDate.get(day.dateStr) || []).length + getTodosForDay(day.dateStr).length > 3"
+                v-if="(eventsByDate.get(day.dateStr) || []).length > 3"
                 class="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 pl-1"
               >
-                +{{ (eventsByDate.get(day.dateStr) || []).length + getTodosForDay(day.dateStr).length - 3 }} more
+                +{{ (eventsByDate.get(day.dateStr) || []).length - 3 }} more
               </div>
             </div>
           </div>
@@ -820,7 +775,7 @@ watch([currentDate, viewMode], () => {
             </div>
 
             <!-- Events -->
-            <div v-if="getEventsForDay(day.dateStr).length > 0 || getTodosForDay(day.dateStr).length > 0" class="px-4 pb-3 space-y-2">
+            <div v-if="getEventsForDay(day.dateStr).length > 0" class="px-4 pb-3 space-y-2">
               <div
                 v-for="event in getEventsForDay(day.dateStr)"
                 :key="event.id"
@@ -841,20 +796,6 @@ watch([currentDate, viewMode], () => {
                 <div v-if="event.people?.length" class="text-xs mt-1 opacity-75">{{ event.people.map(p => p.name).join(', ') }}</div>
               </div>
 
-              <div
-                v-for="todo in getTodosForDay(day.dateStr)"
-                :key="`todo-${todo.id}`"
-                class="p-3 rounded-lg"
-                :style="getTodoStyle(todo)"
-              >
-                <div class="font-medium text-sm flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                  {{ todo.title }}
-                </div>
-                <div v-if="todo.person_name" class="text-xs mt-1 opacity-75">{{ todo.person_name }}</div>
-              </div>
             </div>
           </div>
         </div>
@@ -902,22 +843,6 @@ watch([currentDate, viewMode], () => {
                 <div v-else-if="event.all_day" class="text-xs mt-1 opacity-75">All day</div>
                 <div v-if="event.description" class="text-xs mt-2 opacity-60 line-clamp-2">{{ event.description }}</div>
                 <div v-if="event.people?.length" class="text-xs mt-2 opacity-75">{{ event.people.map(p => p.name).join(', ') }}</div>
-              </div>
-
-              <!-- Todos with due dates -->
-              <div
-                v-for="todo in getTodosForDay(day.dateStr)"
-                :key="`todo-${todo.id}`"
-                class="p-3 rounded-lg"
-                :style="getTodoStyle(todo)"
-              >
-                <div class="font-medium text-sm flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                  {{ todo.title }}
-                </div>
-                <div v-if="todo.person_name" class="text-xs mt-1 opacity-75">{{ todo.person_name }}</div>
               </div>
 
               <!-- Add event button -->
@@ -986,21 +911,6 @@ watch([currentDate, viewMode], () => {
                 <div v-if="event.people?.length" class="text-xs mt-1 opacity-75">{{ event.people.map(p => p.name).join(', ') }}</div>
               </div>
 
-              <!-- Todos -->
-              <div
-                v-for="todo in day.todos"
-                :key="`todo-${todo.id}`"
-                class="p-3 rounded-lg"
-                :style="getTodoStyle(todo)"
-              >
-                <div class="font-medium text-sm flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                  {{ todo.title }}
-                </div>
-                <div v-if="todo.person_name" class="text-xs mt-1 opacity-75">{{ todo.person_name }}</div>
-              </div>
             </div>
           </div>
         </div>

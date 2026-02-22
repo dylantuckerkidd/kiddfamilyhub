@@ -34,3 +34,5 @@ coverage/
 # Database
 *.db
 *.db-journal
+
+CLAUDE.md

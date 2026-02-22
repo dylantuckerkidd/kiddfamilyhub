@@ -327,40 +327,42 @@ onMounted(() => {
 
     <!-- Quick Add Bar -->
     <div class="card p-4">
-      <form @submit.prevent="quickAdd" class="flex flex-col sm:flex-row gap-2 sm:gap-3">
+      <form @submit.prevent="quickAdd" class="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3">
         <input
           v-model="quickTitle"
           type="text"
           placeholder="Add a new task..."
-          class="flex-1 min-w-0 form-input"
+          class="flex-1 min-w-[180px] form-input"
           @keydown.enter.prevent="quickAdd"
         />
-        <select
-          v-model="quickPersonId"
-          class="form-input w-auto"
-        >
-          <option :value="null">Unassigned</option>
-          <option v-for="person in store.familyMembers" :key="person.id" :value="person.id">
-            {{ person.name }}
-          </option>
-        </select>
-        <select
-          v-if="store.categories.length > 0"
-          v-model="quickCategoryId"
-          class="form-input w-auto"
-        >
-          <option :value="null">No category</option>
-          <option v-for="cat in store.categories" :key="cat.id" :value="cat.id">
-            {{ cat.name }}
-          </option>
-        </select>
-        <button
-          type="submit"
-          :disabled="!quickTitle.trim()"
-          class="btn-primary px-5"
-        >
-          Add
-        </button>
+        <div class="flex gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
+          <select
+            v-model="quickPersonId"
+            class="form-input !w-auto max-w-[160px]"
+          >
+            <option :value="null">Unassigned</option>
+            <option v-for="person in store.familyMembers" :key="person.id" :value="person.id">
+              {{ person.name }}
+            </option>
+          </select>
+          <select
+            v-if="store.categories.length > 0"
+            v-model="quickCategoryId"
+            class="form-input !w-auto max-w-[160px]"
+          >
+            <option :value="null">No category</option>
+            <option v-for="cat in store.categories" :key="cat.id" :value="cat.id">
+              {{ cat.name }}
+            </option>
+          </select>
+          <button
+            type="submit"
+            :disabled="!quickTitle.trim()"
+            class="btn-primary px-5 whitespace-nowrap"
+          >
+            Add
+          </button>
+        </div>
       </form>
     </div>
 
@@ -775,7 +777,15 @@ onMounted(() => {
           </div>
         </div>
 
-        <FormInput v-model="todoForm.due_date" label="Due date" type="date" />
+        <div>
+          <label class="form-label">Due date</label>
+          <input
+            v-model="todoForm.due_date"
+            type="date"
+            class="form-input"
+            style="-webkit-appearance: none; min-height: 44px;"
+          />
+        </div>
 
         <!-- Add to Grocery List -->
         <div v-if="editingTodo">
